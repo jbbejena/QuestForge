@@ -394,7 +394,6 @@ def play():
         return redirect(url_for("mission_menu"))
     
     choices = parse_choices(story)
-    print(f"DEBUG: Displaying choices on play page: {choices}")
     
     # Progressive story display: separate base story from new content
     base_story = session.get("base_story", "")
@@ -422,22 +421,10 @@ def make_choice():
         # Get current story and parse fresh choices
         current_story = session.get("story", "")
         choices = parse_choices(current_story)
-        print(f"DEBUG: Current story length: {len(current_story)}")
-        print(f"DEBUG: Story ending: ...{current_story[-200:] if len(current_story) > 200 else current_story}")
-        
-        # Debug logging for choice selection
-        raw_choice = request.form.get("choice", "1")
-        print(f"DEBUG: Raw choice from form: '{raw_choice}'")
-        print(f"DEBUG: Choice index calculated: {choice_index}")
-        print(f"DEBUG: Available choices: {choices}")
-        
         if 0 <= choice_index < len(choices):
             chosen_action = choices[choice_index]
         else:
-            print(f"DEBUG: Invalid choice index {choice_index}, using fallback")
             chosen_action = choices[0] if choices else "Continue forward."
-            
-        print(f"DEBUG: FINAL SELECTED ACTION: '{chosen_action}'")
         
         # Increment turn counter and update mission phase
         turn_count = session.get("turn_count", 0) + 1
@@ -548,7 +535,6 @@ def make_choice():
         )
         
         new_content = ai_chat(system_msg, user_prompt)
-        print(f"DEBUG: AI Response: {new_content[:200]}...")
         
         # Progressive story system: separate new content from base story
         choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
@@ -569,10 +555,6 @@ def make_choice():
         # Update the full story for next iteration - this is critical for choice parsing
         new_full_story = base_story + choice_result
         session["story"] = new_full_story
-        
-        # Verify choices are properly extracted from new content
-        updated_choices = parse_choices(new_full_story)
-        print(f"DEBUG: Updated choices after AI response: {updated_choices}")
         
         # Critical optimization: limit story history to prevent session bloat
         if len(story_history) > 6:
