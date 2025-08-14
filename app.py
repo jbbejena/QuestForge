@@ -423,15 +423,18 @@ def make_choice():
         choices = parse_choices(current_story)
         
         # Debug logging for choice selection
-        logging.info(f"Choice index received: {choice_index + 1}")
+        raw_choice = request.form.get("choice", "1")
+        logging.info(f"Raw choice from form: '{raw_choice}'")
+        logging.info(f"Choice index calculated: {choice_index}")
         logging.info(f"Available choices: {choices}")
         
         if 0 <= choice_index < len(choices):
             chosen_action = choices[choice_index]
         else:
+            logging.warning(f"Invalid choice index {choice_index}, using fallback")
             chosen_action = choices[0] if choices else "Continue forward."
             
-        logging.info(f"Selected action: {chosen_action}")
+        logging.info(f"FINAL SELECTED ACTION: '{chosen_action}'")
         
         # Increment turn counter and update mission phase
         turn_count = session.get("turn_count", 0) + 1
