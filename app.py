@@ -394,6 +394,7 @@ def play():
         return redirect(url_for("mission_menu"))
     
     choices = parse_choices(story)
+    print(f"DEBUG: Displaying choices on play page: {choices}")
     
     # Progressive story display: separate base story from new content
     base_story = session.get("base_story", "")
@@ -424,17 +425,17 @@ def make_choice():
         
         # Debug logging for choice selection
         raw_choice = request.form.get("choice", "1")
-        logging.info(f"Raw choice from form: '{raw_choice}'")
-        logging.info(f"Choice index calculated: {choice_index}")
-        logging.info(f"Available choices: {choices}")
+        print(f"DEBUG: Raw choice from form: '{raw_choice}'")
+        print(f"DEBUG: Choice index calculated: {choice_index}")
+        print(f"DEBUG: Available choices: {choices}")
         
         if 0 <= choice_index < len(choices):
             chosen_action = choices[choice_index]
         else:
-            logging.warning(f"Invalid choice index {choice_index}, using fallback")
+            print(f"DEBUG: Invalid choice index {choice_index}, using fallback")
             chosen_action = choices[0] if choices else "Continue forward."
             
-        logging.info(f"FINAL SELECTED ACTION: '{chosen_action}'")
+        print(f"DEBUG: FINAL SELECTED ACTION: '{chosen_action}'")
         
         # Increment turn counter and update mission phase
         turn_count = session.get("turn_count", 0) + 1

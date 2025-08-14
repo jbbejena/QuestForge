@@ -135,7 +135,8 @@
                 <button type="submit" 
                         name="choice" 
                         value="{{ loop.index }}" 
-                        class="choice-btn choice-{{ loop.index }}">
+                        class="choice-btn choice-{{ loop.index }}"
+                        onclick="console.log('Clicked choice {{ loop.index }}: {{ choice }}')">
                     <span class="choice-number">{{ loop.index }}</span>
                     <span class="choice-text">{{ choice }}</span>
                     <i class="fas fa-chevron-right"></i>
