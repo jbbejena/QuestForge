@@ -272,8 +272,6 @@ def make_choice():
             chosen_action = "Continue forward."
         
         logging.info(f"Player chose option {choice_index + 1}: {chosen_action}")
-        logging.debug(f"Current story length: {len(current_story)} characters")
-        logging.debug(f"Session keys: {list(session.keys())}")
         
         # Update achievement stats for choice made
         session["player_stats"] = update_player_stats(session["player_stats"], "choice_made")
@@ -305,259 +303,191 @@ def make_choice():
             # Chance to find resources or recover health
             if random.random() < 0.3:  # 30% chance
                 heal = random.randint(5, 15)
-                player["health"] = min(player.get("max_health", 100), player.get("health", 100) + heal)
+                player["health"] = min(100, player.get("health", 100) + heal)
                 story += f"You recover {heal} health points.\n"
         
-        session["player"] = player
+        # Check if player died
+        if player.get("health", 0) <= 0:
+            session["player_stats"] = update_player_stats(session["player_stats"], "player_death")
+            story += "\n--- MISSION FAILED ---\nYou have been critically wounded and the mission is aborted."
+            session["story"] = story
+            return redirect(url_for("base_camp"))
         
-        # Generate next scenario
+        # Continue story generation
         system_msg = (
-            "You are a WWII text-adventure game master. "
-            "Continue the story based on the player's previous choice. "
-            "Write 1-2 paragraphs advancing the narrative. "
-            "Always end with exactly 3 numbered tactical choices. "
-            "Include a 'return to base' or 'complete mission' choice if the objective can be completed. "
-            "If combat breaks out, clearly include the word 'combat' in the text."
+            "Continue the WWII text adventure story. "
+            "Respond to the player's choice with consequences and advance the narrative. "
+            "Always end with exactly 3 numbered tactical choices (1, 2, 3). "
+            "Make combat realistic and tense. "
+            "If the mission should end, include clear completion language."
         )
         
-        # Create continuation prompt
-        recent_story = '\n'.join(story.split('\n')[-20:])  # Keep last 20 lines for context
-        prompt = f"Recent story context:\n{recent_story}\n\nPlayer Health: {player.get('health', 100)}/100"
+        user_prompt = (
+            f"Current situation: {story}\n"
+            f"Player health: {player.get('health', 100)}/100\n"
+            f"Resources: Ammo={resources.get('ammo', 0)}, Medkits={resources.get('medkit', 0)}, Grenades={resources.get('grenade', 0)}\n"
+            "Continue the story and provide 3 tactical choices."
+        )
         
-        next_scenario = ai_chat(system_msg, prompt)
-        story += "\n" + next_scenario
+        new_content = ai_chat(system_msg, user_prompt)
+        story += new_content
         
-        # Check for combat and auto-resolve
-        if any(keyword in next_scenario.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
-            story = resolve_combat(story, player, resources)
-        
-        # Keep story manageable but don't truncate too aggressively
-        story_parts = story.split('\n\n')
-        if len(story_parts) > 15:  # Keep more story context
-            # Keep the mission briefing (first part) and recent parts
-            story = story_parts[0] + '\n\n' + '\n\n'.join(story_parts[-12:])
+        # Check for combat and update stats
+        if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
+            if random.random() < 0.6:  # 60% chance to win combat
+                session["battles_won"] = session.get("battles_won", 0) + 1
+                session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
         
         session["story"] = story
-        
-        # Check for game over condition
-        if player.get("health", 0) <= 0:
-            # Update achievement stats for death
-            session["player_stats"] = update_player_stats(session["player_stats"], "player_death")
-            return redirect(url_for("game_over"))
+        session["player"] = player
+        session["resources"] = resources
         
         return redirect(url_for("play"))
-    
+        
     except Exception as e:
         logging.error(f"Error in make_choice: {e}")
-        return render_template("error.html", error=f"Game error: {str(e)}"), 500
+        return render_template("error.html", error=str(e))
 
-def resolve_combat(story: str, player: dict, resources: dict) -> str:
-    """Auto-resolve combat encounters."""
-    # Combat outcome based on player stats and random chance
-    combat_skill = 0.7  # Base skill
-    
-    # Modify based on class
-    if player.get("class") == "Sniper":
-        combat_skill += 0.1
-    elif player.get("class") == "Gunner":
-        combat_skill += 0.1
-    elif player.get("class") == "Demolitions":
-        combat_skill += 0.05
-    
-    # Check if player has advantages
-    if resources.get("ammo", 0) > 5:
-        combat_skill += 0.1
-    if resources.get("grenade", 0) > 0:
-        combat_skill += 0.15
-        resources["grenade"] -= 1  # Use grenade in combat
-    
-    # Determine outcome
-    if random.random() < combat_skill:
-        # Victory
-        damage = random.randint(5, 15)
-        player["health"] = max(1, player.get("health", 100) - damage)
-        story += f"\n\n[COMBAT RESOLVED]\nYou and your squad emerge victorious! You sustained {damage} damage but eliminated the enemy threat.\n"
-        
-        # Combat rewards
-        resources["ammo"] = resources.get("ammo", 0) + random.randint(2, 5)
-        if random.random() < 0.3:
-            resources["medkit"] = resources.get("medkit", 0) + 1
-            story += "You found a medical kit among the enemy supplies.\n"
-        
-        session["battles_won"] = session.get("battles_won", 0) + 1
-        session["score"] = session.get("score", 0) + 25
-        
-        # Update achievement stats for combat victory
-        session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
-    else:
-        # Defeat/Heavy casualties
-        damage = random.randint(20, 40)
-        player["health"] = max(0, player.get("health", 100) - damage)
-        story += f"\n\n[COMBAT RESOLVED]\nThe enemy had the advantage. Your squad took heavy casualties and you suffered {damage} damage.\n"
-        
-        # Loss of resources
-        resources["ammo"] = max(0, resources.get("ammo", 0) - random.randint(2, 4))
-    
-    # Use ammo in combat
-    resources["ammo"] = max(0, resources.get("ammo", 0) - random.randint(1, 3))
-    
-    # Generate post-combat scenario
-    system_msg = (
-        "A combat encounter has just been resolved. "
-        "Write a brief aftermath scenario with exactly 3 numbered choices. "
-        "Include tactical options like treating wounded, securing the area, or advancing. "
-        "Do not immediately start another combat."
-    )
-    
-    prompt = f"{story}\n\nPlayer Health: {player.get('health', 100)}/100"
-    aftermath = ai_chat(system_msg, prompt, temperature=0.6)
-    story += "\n" + aftermath
-    
-    return story
-
-def complete_mission(story: str):
+def complete_mission(story):
     """Handle mission completion."""
     mission = session.get("mission", {})
-    player = session.get("player", {})
+    difficulty_mod = get_difficulty_modifier(mission.get("difficulty", "Medium"))
     
-    # Add mission to completed list
+    # Award score based on difficulty and health remaining
+    base_score = difficulty_mod["reward"]
+    health_bonus = session.get("player", {}).get("health", 0)
+    total_score = base_score + health_bonus
+    
+    session["score"] = session.get("score", 0) + total_score
+    session["missions_completed"] = session.get("missions_completed", 0) + 1
+    
+    # Add to completed missions
     completed = session.get("completed", [])
-    if mission.get("name") and mission["name"] not in completed:
+    if mission.get("name") not in completed:
         completed.append(mission["name"])
         session["completed"] = completed
     
-    # Calculate mission rewards
-    difficulty_mod = get_difficulty_modifier(mission.get("difficulty", "Medium"))
-    base_reward = difficulty_mod["reward"]
-    
-    # Bonus for health remaining
-    health_bonus = max(0, (player.get("health", 0) - 50) * 2)
-    total_reward = base_reward + health_bonus
-    
-    session["score"] = session.get("score", 0) + total_reward
-    session["missions_completed"] = session.get("missions_completed", 0) + 1
-    
     # Update achievement stats
-    player_stats = session.get("player_stats", {})
-    player_stats = update_player_stats(player_stats, "mission_completed", score=total_reward)
-    
-    # Check if mission was completed with squad
-    if len(session.get("squad", [])) > 2:
-        player_stats = update_player_stats(player_stats, "squad_mission_success")
-    
-    session["player_stats"] = player_stats
+    session["player_stats"] = update_player_stats(
+        session["player_stats"], 
+        "mission_completed", 
+        score=total_score
+    )
     
     # Check for new achievements
-    new_achievements = check_achievements(player_stats)
+    new_achievements = check_achievements(session["player_stats"])
     if new_achievements:
-        # Add new achievements to unlocked list
-        unlocked = player_stats.get("achievements_unlocked", [])
+        # Mark achievements as unlocked
+        unlocked = session["player_stats"].get("achievements_unlocked", [])
         for achievement_id in new_achievements:
             if achievement_id not in unlocked:
                 unlocked.append(achievement_id)
-        player_stats["achievements_unlocked"] = unlocked
-        session["player_stats"] = player_stats
+        session["player_stats"]["achievements_unlocked"] = unlocked
         
-        # Store achievements for display
-        session["new_achievements"] = new_achievements
+        # Store new achievements for display
+        session["new_achievements"] = [get_achievement_display(aid) for aid in new_achievements]
     
-    # Heal player after successful mission
-    player["health"] = min(player.get("max_health", 100), player.get("health", 0) + 20)
-    session["player"] = player
+    story += f"\n\n--- MISSION COMPLETE ---\nScore earned: {total_score} points"
+    session["story"] = story
     
-    logging.info(f"Mission completed: {mission.get('name')} - Score: {total_reward}")
-    return redirect(url_for("base"))
+    return redirect(url_for("base_camp"))
 
 @app.route("/base")
-def base():
-    """Base/headquarters screen showing progress."""
+def base_camp():
+    """Base camp summary page."""
+    # Check for new achievements to display
+    new_achievements = session.pop("new_achievements", [])
+    
     return render_template("base.html",
-                         completed=session.get("completed", []),
+                         player=session.get("player"),
                          score=session.get("score", 0),
                          missions_completed=session.get("missions_completed", 0),
                          battles_won=session.get("battles_won", 0),
-                         player=session.get("player", {}))
-
-@app.route("/use_item", methods=["POST"])
-def use_item():
-    """Allow player to use items during gameplay."""
-    item = request.form.get("item")
-    resources = session.get("resources", {})
-    player = session.get("player", {})
-    
-    if item == "medkit" and resources.get("medkit", 0) > 0:
-        heal_amount = 30
-        player["health"] = min(player.get("max_health", 100), player.get("health", 0) + heal_amount)
-        resources["medkit"] -= 1
-        
-        # Update achievement stats for item usage
-        session["player_stats"] = update_player_stats(session["player_stats"], "item_used")
-        
-        session["player"] = player
-        session["resources"] = resources
-        session.permanent = True  # Ensure session persists
-        
-        return jsonify({"success": True, "message": f"Used medkit. Restored {heal_amount} health.", "health": player["health"]})
-    
-    return jsonify({"success": False, "message": "Cannot use that item right now."})
-
-@app.route("/stream_story")
-def stream_story():
-    """Stream story content for typewriter effect."""
-    story = session.get("story", "")
-    return jsonify({"story": story})
-
-@app.route("/game_over")
-def game_over():
-    """Game over screen."""
-    return render_template("game_over.html", 
-                         player=session.get("player", {}),
-                         score=session.get("score", 0),
-                         missions_completed=session.get("missions_completed", 0))
+                         completed=session.get("completed", []),
+                         new_achievements=new_achievements)
 
 @app.route("/achievements")
 def achievements():
-    """Display achievements and trivia."""
+    """Display achievements page."""
     player_stats = session.get("player_stats", initialize_player_stats())
-    unlocked_achievements = player_stats.get("achievements_unlocked", [])
+    unlocked_ids = player_stats.get("achievements_unlocked", [])
     
-    # Get achievement display data
+    # Prepare achievement data for template
     achievements_data = []
-    for achievement_id, achievement in ACHIEVEMENTS.items():
-        display_data = dict(get_achievement_display(achievement_id))
-        display_data["unlocked"] = str(achievement_id in unlocked_achievements)
+    for achievement_id, achievement_info in ACHIEVEMENTS.items():
+        display_data = get_achievement_display(achievement_id)
+        display_data["unlocked"] = str(achievement_id in unlocked_ids)
         achievements_data.append(display_data)
     
-    # Check for new achievements and clear the flag
-    new_achievements = session.pop("new_achievements", [])
-    new_achievement_data = []
-    for achievement_id in new_achievements:
-        new_achievement_data.append(get_achievement_display(achievement_id))
+    # Check for newly unlocked achievements
+    new_achievement_ids = check_achievements(player_stats)
+    new_achievements = []
+    if new_achievement_ids:
+        for aid in new_achievement_ids:
+            if aid not in unlocked_ids:
+                unlocked_ids.append(aid)
+                new_achievements.append(get_achievement_display(aid))
+        
+        # Update session with newly unlocked achievements
+        player_stats["achievements_unlocked"] = unlocked_ids
+        session["player_stats"] = player_stats
     
     return render_template("achievements.html",
                          achievements=achievements_data,
-                         new_achievements=new_achievement_data,
+                         new_achievements=new_achievements,
                          player_stats=player_stats)
+
+@app.route("/use_item", methods=["POST"])
+def use_item():
+    """Handle item usage during gameplay."""
+    item_type = request.form.get("item")
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    
+    if item_type == "medkit" and resources.get("medkit", 0) > 0:
+        if player.get("health", 100) < 100:
+            heal_amount = 30
+            player["health"] = min(100, player.get("health", 100) + heal_amount)
+            resources["medkit"] -= 1
+            
+            # Update achievement stats
+            session["player_stats"] = update_player_stats(session["player_stats"], "item_used")
+            
+            session["player"] = player
+            session["resources"] = resources
+            
+            return jsonify({
+                "success": True,
+                "message": f"Medkit used! Restored {heal_amount} health.",
+                "health": player["health"]
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "You are already at full health."
+            })
+    
+    return jsonify({
+        "success": False,
+        "message": "Cannot use that item right now."
+    })
 
 @app.route("/reset")
 def reset():
     """Reset game session."""
-    # Preserve achievements across resets
-    player_stats = session.get("player_stats", {})
+    # Preserve achievement stats across resets
+    player_stats = session.get("player_stats", initialize_player_stats())
     session.clear()
-    if player_stats.get("achievements_unlocked"):
-        session["player_stats"] = player_stats
+    session["player_stats"] = player_stats
     return redirect(url_for("index"))
 
-# Error handlers
 @app.errorhandler(404)
 def not_found(error):
     return render_template("error.html", error="Page not found"), 404
 
 @app.errorhandler(500)
-def internal_error(error):
+def server_error(error):
     return render_template("error.html", error="Internal server error"), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Selection - WWII Text Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                <i class="fas fa-map"></i>
+                Mission Briefing
+            </h1>
+            <p class="subtitle">Select your next operation, soldier</p>
+        </header>
+
+        {% if player %}
+        <div class="player-status">
+            <div class="player-info">
+                <div class="player-avatar">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <div class="player-details">
+                    <h3>{{ player.rank }} {{ player.name }}</h3>
+                    <p>{{ player.class }} - {{ player.weapon }}</p>
+                    <div class="health-display">
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if player.health > 70 %}health-good{% elif player.health > 30 %}health-warning{% else %}health-danger{% endif %}" 
+                                 style="width: {{ player.health }}%"></div>
+                            <span class="progress-text">{{ player.health }}/100 HP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="score-display">
+                <div class="score-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>{{ score }} pts</span>
+                </div>
+                <div class="score-item">
+                    <i class="fas fa-medal"></i>
+                    <span>{{ achievements_count }} achievements</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="missions-grid">
+            {% for mission in missions %}
+            <div class="mission-card" data-difficulty="{{ mission.difficulty }}">
+                <div class="mission-header">
+                    <h3>{{ mission.name }}</h3>
+                    <div class="difficulty-badge difficulty-{{ mission.difficulty.lower() }}">
+                        {% if mission.difficulty == "Easy" %}
+                            <i class="fas fa-star"></i>
+                        {% elif mission.difficulty == "Medium" %}
+                            <i class="fas fa-star"></i><i class="fas fa-star"></i>
+                        {% else %}
+                            <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                        {% endif %}
+                        {{ mission.difficulty }}
+                    </div>
+                </div>
+                
+                <div class="mission-content">
+                    <p class="mission-description">{{ mission.desc }}</p>
+                    
+                    <div class="mission-rewards">
+                        <div class="reward-item">
+                            <i class="fas fa-coins"></i>
+                            <span>
+                                {% if mission.difficulty == "Easy" %}50 pts
+                                {% elif mission.difficulty == "Medium" %}100 pts
+                                {% else %}200 pts{% endif %}
+                            </span>
+                        </div>
+                        <div class="reward-item">
+                            <i class="fas fa-bullseye"></i>
+                            <span>+3 Ammo</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post" action="{{ url_for('start_mission') }}" class="mission-form">
+                    <input type="hidden" name="mission" value="{{ mission.name }}">
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="fas fa-rocket"></i>
+                        Deploy
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="navigation-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                <i class="fas fa-home"></i>
+                Return to Base
+            </a>
+            
+            {% if achievements_count > 0 %}
+            <a href="{{ url_for('achievements') }}" class="btn btn-info">
+                <i class="fas fa-trophy"></i>
+                Achievements ({{ achievements_count }})
+            </a>
+            {% endif %}
+            
+            <a href="{{ url_for('reset') }}" class="btn btn-warning">
+                <i class="fas fa-refresh"></i>
+                New Campaign
+            </a>
+        </div>
+
+        <div class="mission-tips">
+            <h3><i class="fas fa-lightbulb"></i> Mission Tips</h3>
+            <div class="tips-grid">
+                <div class="tip">
+                    <i class="fas fa-heart"></i>
+                    <p>Higher health at mission end = bonus points</p>
+                </div>
+                <div class="tip">
+                    <i class="fas fa-crosshairs"></i>
+                    <p>Combat victories unlock special achievements</p>
+                </div>
+                <div class="tip">
+                    <i class="fas fa-first-aid"></i>
+                    <p>Use medkits strategically to survive tough missions</p>
+                </div>
+                <div class="tip">
+                    <i class="fas fa-clock"></i>
+                    <p>Quick mission completion earns speed bonuses</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

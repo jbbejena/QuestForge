@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WWII Text Adventure - Enlist Today</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#2C5530">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                <i class="fas fa-medal"></i>
+                WWII Text Adventure
+            </h1>
+            <p class="subtitle">Answer the call of duty. Your mission awaits.</p>
+            
+            {% if achievements_count > 0 %}
+            <div class="achievements-badge">
+                <i class="fas fa-trophy"></i>
+                {{ achievements_count }} Achievement{{ 's' if achievements_count != 1 else '' }} Unlocked
+            </div>
+            {% endif %}
+        </header>
+
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-clipboard"></i> Enlistment Form</h2>
+                <p>Fill out your military records to begin your service</p>
+            </div>
+            
+            <form method="post" action="{{ url_for('create_character') }}" class="character-form">
+                <div class="form-group">
+                    <label for="name">
+                        <i class="fas fa-user"></i>
+                        Soldier Name
+                    </label>
+                    <input type="text" 
+                           id="name" 
+                           name="name" 
+                           placeholder="Enter your name" 
+                           maxlength="20" 
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="rank">
+                        <i class="fas fa-star"></i>
+                        Military Rank
+                    </label>
+                    <select id="rank" name="rank" required>
+                        {% for rank in ranks %}
+                        <option value="{{ rank }}">{{ rank }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-chess-pawn"></i> Combat Specialization</label>
+                    <div class="class-selection">
+                        {% for class in classes %}
+                        <div class="class-option">
+                            <input type="radio" 
+                                   id="class_{{ loop.index }}" 
+                                   name="char_class" 
+                                   value="{{ class }}" 
+                                   {% if loop.first %}checked{% endif %}>
+                            <label for="class_{{ loop.index }}" class="class-label">
+                                <div class="class-icon">
+                                    {% if class == "Rifleman" %}
+                                        <i class="fas fa-crosshairs"></i>
+                                    {% elif class == "Medic" %}
+                                        <i class="fas fa-first-aid"></i>
+                                    {% elif class == "Gunner" %}
+                                        <i class="fas fa-bomb"></i>
+                                    {% elif class == "Sniper" %}
+                                        <i class="fas fa-bullseye"></i>
+                                    {% elif class == "Demolitions" %}
+                                        <i class="fas fa-fire"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="class-name">{{ class }}</div>
+                                <div class="class-desc">
+                                    {% if class == "Rifleman" %}
+                                        Versatile infantry soldier
+                                    {% elif class == "Medic" %}
+                                        Battlefield healer and support
+                                    {% elif class == "Gunner" %}
+                                        Heavy weapons specialist
+                                    {% elif class == "Sniper" %}
+                                        Long-range precision marksman
+                                    {% elif class == "Demolitions" %}
+                                        Explosives and sabotage expert
+                                    {% endif %}
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="weapon">
+                        <i class="fas fa-gun"></i>
+                        Primary Weapon
+                    </label>
+                    <select id="weapon" name="weapon" required>
+                        {% for weapon in weapons %}
+                        <option value="{{ weapon }}">{{ weapon }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-large">
+                    <i class="fas fa-rocket"></i>
+                    Begin Military Service
+                </button>
+            </form>
+        </div>
+
+        <div class="info-cards">
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h3>AI-Powered Stories</h3>
+                <p>Dynamic narratives that adapt to your choices using advanced AI technology.</p>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <h3>Historical Achievements</h3>
+                <p>Unlock real WWII facts and trivia as you progress through your military career.</p>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-mobile-alt"></i>
+                </div>
+                <h3>Mobile Optimized</h3>
+                <p>Full touch support and offline play capabilities for gaming on the go.</p>
+            </div>
+        </div>
+
+        {% if achievements_count > 0 %}
+        <div class="quick-actions">
+            <a href="{{ url_for('achievements') }}" class="btn btn-info">
+                <i class="fas fa-trophy"></i>
+                View Achievements
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Notifications -->
+    <div id="notification" class="notification hidden">
+        <span id="notification-text"></span>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

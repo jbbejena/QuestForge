@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Achievements - WWII Text Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <div class="achievements-container">
+            <div class="achievements-header">
+                <h1>🏆 War Records & Achievements</h1>
+                <p>Your journey through history and the trivia you've unlocked</p>
+                <div class="stats-summary">
+                    <span>{{ player_stats.achievements_unlocked|length }}/{{ achievements|length }} Achievements Unlocked</span>
+                </div>
+            </div>
+
+            <!-- New Achievement Notifications -->
+            {% if new_achievements %}
+            <div class="achievement-notifications">
+                <h2>🎖️ New Achievements Unlocked!</h2>
+                {% for achievement in new_achievements %}
+                <div class="achievement-notification">
+                    <div class="achievement-icon">{{ achievement.icon }}</div>
+                    <div class="achievement-info">
+                        <h3>{{ achievement.name }}</h3>
+                        <p>{{ achievement.description }}</p>
+                        <div class="trivia-unlock">
+                            <strong>{{ achievement.trivia_title }}</strong>
+                            <p>{{ achievement.trivia_fact }}</p>
+                            <span class="trivia-category">{{ achievement.trivia_category }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Achievement Grid -->
+            <div class="achievements-grid">
+                {% for achievement in achievements %}
+                <div class="achievement-card {% if achievement.unlocked == True %}unlocked{% else %}locked{% endif %}">
+                    <div class="achievement-icon">
+                        {{ achievement.icon if achievement.unlocked else "🔒" }}
+                    </div>
+                    <div class="achievement-details">
+                        <h3>{{ achievement.name if achievement.unlocked else "???" }}</h3>
+                        <p class="achievement-desc">
+                            {{ achievement.description if achievement.unlocked else "Complete more missions to unlock this achievement" }}
+                        </p>
+                        
+                        {% if achievement.unlocked %}
+                        <div class="historical-trivia">
+                            <h4>📚 {{ achievement.trivia_title }}</h4>
+                            <p>{{ achievement.trivia_fact }}</p>
+                            <div class="trivia-category-tag">{{ achievement.trivia_category }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Player Statistics -->
+            <div class="player-statistics">
+                <h2>📊 Combat Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Missions Completed</span>
+                        <span class="stat-value">{{ player_stats.missions_completed or 0 }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Combat Victories</span>
+                        <span class="stat-value">{{ player_stats.combat_victories or 0 }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Items Used</span>
+                        <span class="stat-value">{{ player_stats.items_used or 0 }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Score</span>
+                        <span class="stat-value">{{ player_stats.total_score or 0 }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Deaths</span>
+                        <span class="stat-value">{{ player_stats.deaths or 0 }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Classes Played</span>
+                        <span class="stat-value">{{ player_stats.classes_used|length or 0 }}/5</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="achievements-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">🏠 Return to Main Menu</a>
+                <a href="{{ url_for('mission_menu') }}" class="btn btn-secondary">⚔️ Continue Fighting</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,347 @@
+// WWII Text Adventure - Mobile-Optimized JavaScript
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize game features
+    initializeTouchHandlers();
+    initializeNotifications();
+    initializeAutoSave();
+    initializeMobileOptimizations();
+    initializeTypewriterEffect();
+    initializeLoadingStates();
+});
+
+// Touch and Mobile Optimizations
+function initializeTouchHandlers() {
+    // Add touch feedback to all interactive elements
+    const touchElements = document.querySelectorAll('.btn, .choice-btn, .mission-label');
+
+    touchElements.forEach(element => {
+        // Touch start - add pressed state
+        element.addEventListener('touchstart', function(e) {
+            this.classList.add('pressed');
+        }, { passive: true });
+
+        // Touch end - remove pressed state
+        element.addEventListener('touchend', function(e) {
+            this.classList.remove('pressed');
+        }, { passive: true });
+
+        // Touch cancel - remove pressed state
+        element.addEventListener('touchcancel', function(e) {
+            this.classList.remove('pressed');
+        }, { passive: true });
+    });
+
+    // Prevent double-tap zoom on buttons
+    const buttons = document.querySelectorAll('.btn, .choice-btn');
+    buttons.forEach(button => {
+        button.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            this.click();
+        });
+    });
+}
+
+function initializeMobileOptimizations() {
+    // Improve scrolling on mobile
+    document.body.style.webkitOverflowScrolling = 'touch';
+
+    // Prevent zoom on input focus (iOS)
+    const inputs = document.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 
+                    'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 
+                    'width=device-width, initial-scale=1.0');
+            }
+        });
+    });
+
+    // Add loading states to forms
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function() {
+            this.classList.add('loading');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
+        });
+    });
+}
+
+// Notification System
+function initializeNotifications() {
+    window.showNotification = function(message, type = 'success', duration = 3000) {
+        const notification = document.getElementById('notification');
+        const text = document.getElementById('notification-text');
+
+        if (!notification || !text) return;
+
+        // Set message and type
+        text.textContent = message;
+        notification.className = `notification ${type}`;
+
+        // Show notification
+        notification.classList.add('show');
+        notification.classList.remove('hidden');
+
+        // Hide after duration
+        setTimeout(() => {
+            notification.classList.remove('show');
+            notification.classList.add('hidden');
+        }, duration);
+    };
+}
+
+// Auto-save functionality
+function initializeAutoSave() {
+    // Save form data automatically
+    const inputs = document.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            saveFormData();
+        });
+    });
+
+    // Restore form data on page load
+    restoreFormData();
+}
+
+function saveFormData() {
+    const formData = {};
+    const inputs = document.querySelectorAll('input, select');
+
+    inputs.forEach(input => {
+        if (input.type === 'radio') {
+            if (input.checked) {
+                formData[input.name] = input.value;
+            }
+        } else {
+            formData[input.name] = input.value;
+        }
+    });
+
+    localStorage.setItem('wwii_game_form_data', JSON.stringify(formData));
+}
+
+function restoreFormData() {
+    const savedData = localStorage.getItem('wwii_game_form_data');
+    if (!savedData) return;
+
+    try {
+        const formData = JSON.parse(savedData);
+
+        Object.keys(formData).forEach(name => {
+            const input = document.querySelector(`[name="${name}"]`);
+            if (input) {
+                if (input.type === 'radio') {
+                    const radioOption = document.querySelector(`[name="${name}"][value="${formData[name]}"]`);
+                    if (radioOption) {
+                        radioOption.checked = true;
+                    }
+                } else {
+                    input.value = formData[name];
+                }
+            }
+        });
+    } catch (e) {
+        console.warn('Could not restore form data:', e);
+    }
+}
+
+// Item Usage
+function useItem(itemType) {
+    fetch('/use_item', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `item=${encodeURIComponent(itemType)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+
+            // Update UI if health changed
+            if (data.health !== undefined) {
+                updateHealthDisplay(data.health);
+            }
+
+            // Reload page to reflect changes
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error using item:', error);
+        showNotification('Failed to use item. Please try again.', 'error');
+    });
+}
+
+function updateHealthDisplay(newHealth) {
+    const healthFill = document.querySelector('.progress-fill');
+    const healthText = document.querySelector('.progress-text');
+    if (healthFill) {
+        healthFill.style.width = `${newHealth}%`;
+        healthFill.className = 'progress-fill';
+        if (newHealth > 70) healthFill.classList.add('health-good');
+        else if (newHealth > 30) healthFill.classList.add('health-warning');
+        else healthFill.classList.add('health-danger');
+    }
+    if (healthText) healthText.textContent = `${newHealth}/100`;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Only on play page with choices
+    const choices = document.querySelectorAll('.choice-btn');
+    if (choices.length === 0) return;
+
+    // Number keys 1-3 for choices
+    if (e.key >= '1' && e.key <= '3') {
+        const choiceIndex = parseInt(e.key) - 1;
+        if (choices[choiceIndex]) {
+            e.preventDefault();
+            choices[choiceIndex].click();
+        }
+    }
+
+    // Enter key to select first choice
+    if (e.key === 'Enter' && !e.target.matches('input, select, button')) {
+        e.preventDefault();
+        choices[0].click();
+    }
+});
+
+// Typewriter Effect for Story Text
+function initializeTypewriterEffect() {
+    const storyContent = document.querySelector('.story-content');
+    if (!storyContent) return;
+
+    // Check if this is new content that should be typed out
+    const shouldAnimate = sessionStorage.getItem('animateText') === 'true';
+    if (shouldAnimate) {
+        sessionStorage.removeItem('animateText');
+        typewriterEffect(storyContent);
+    }
+}
+
+function typewriterEffect(element) {
+    const text = element.innerHTML;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    const textContent = tempDiv.innerText || tempDiv.textContent;
+
+    element.innerHTML = '';
+    element.style.borderRight = '2px solid var(--color-primary-light)';
+
+    let i = 0;
+    const speed = 15; // Adjust typing speed (reduced for faster typing)
+
+    function typeChar() {
+        if (i < textContent.length) {
+            element.innerHTML += textContent.charAt(i);
+            i++;
+            setTimeout(typeChar, speed);
+        } else {
+            element.style.borderRight = 'none';
+            element.innerHTML = text; // Restore full formatting
+        }
+    }
+
+    typeChar();
+}
+
+// Loading States
+function initializeLoadingStates() {
+    // Add loading overlay to choices
+    const choiceButtons = document.querySelectorAll('.choice-btn');
+    choiceButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            showLoadingOverlay();
+            sessionStorage.setItem('animateText', 'true');
+
+            // Submit the form after showing loading
+            setTimeout(() => {
+                this.closest('form').submit();
+            }, 100);
+        });
+    });
+
+    // Add loading to mission selection
+    const missionForm = document.querySelector('form[action*="start_mission"]');
+    if (missionForm) {
+        missionForm.addEventListener('submit', function() {
+            showLoadingOverlay('Deploying to mission zone...');
+            sessionStorage.setItem('animateText', 'true');
+        });
+    }
+
+    // Add loading to character creation
+    const characterForm = document.querySelector('form[action*="create_character"]');
+    if (characterForm) {
+        characterForm.addEventListener('submit', function() {
+            showLoadingOverlay('Enlisting soldier...');
+        });
+    }
+}
+
+function showLoadingOverlay(message = 'Processing tactical decision...') {
+    const existingOverlay = document.querySelector('.loading-overlay'); 
+    if (existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-message">${message}</div>
+            <div class="loading-dots"><span>.</span><span>.</span><span>.</span></div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    setTimeout(() => { 
+        if (overlay && overlay.parentNode) overlay.remove(); 
+    }, 10000);
+}
+
+// Performance monitoring + SW registration
+(function(){
+  if ('performance' in window) {
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const perfData = performance.getEntriesByType('navigation')[0];
+        if (perfData) console.log(`Page load: ${perfData.loadEventEnd - perfData.loadEventStart}ms`);
+      }, 0);
+    });
+  }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/static/sw.js').then(()=>console.log('SW ok')).catch(()=>console.log('SW fail'));
+    });
+  }
+})();
+
+// Animation helpers
+function animateElement(element, animation, duration = 500) {
+    element.style.animation = `${animation} ${duration}ms ease-in-out`;
+
+    setTimeout(() => {
+        element.style.animation = '';
+    }, duration);
+}
