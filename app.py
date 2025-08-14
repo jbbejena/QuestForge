@@ -123,11 +123,93 @@ def parse_choices(text: str):
 def get_difficulty_modifier(difficulty: str) -> dict:
     """Get difficulty-based modifiers for missions."""
     modifiers = {
-        "Easy": {"health_loss_min": 0, "health_loss_max": 10, "reward": 50},
-        "Medium": {"health_loss_min": 5, "health_loss_max": 20, "reward": 100},
-        "Hard": {"health_loss_min": 10, "health_loss_max": 30, "reward": 200}
+        "Easy": {"health_loss_min": 0, "health_loss_max": 10, "reward": 50, "event_chance": 0.3},
+        "Medium": {"health_loss_min": 5, "health_loss_max": 20, "reward": 100, "event_chance": 0.4},
+        "Hard": {"health_loss_min": 10, "health_loss_max": 30, "reward": 200, "event_chance": 0.5}
     }
     return modifiers.get(difficulty, modifiers["Medium"])
+
+def generate_dynamic_consequences(chosen_action: str, player: dict, resources: dict, mission: dict, turn_count: int) -> str:
+    """Generate dynamic consequences based on player choice and context."""
+    events = []
+    difficulty_mod = get_difficulty_modifier(mission.get("difficulty", "Medium"))
+    player_class = player.get("class", "Rifleman")
+    
+    # Class-specific advantages
+    class_bonuses = {
+        "Medic": {"healing_boost": 1.5, "squad_protection": 0.8},
+        "Sniper": {"stealth_bonus": 0.7, "precision_bonus": 1.2},
+        "Gunner": {"suppression_bonus": 1.3, "ammo_efficiency": 0.9},
+        "Demolitions": {"explosive_bonus": 1.5, "structural_damage": 1.4},
+        "Rifleman": {"leadership_bonus": 1.1, "morale_boost": 1.2}
+    }
+    
+    bonus = class_bonuses.get(player_class, class_bonuses["Rifleman"])
+    
+    # Analyze choice for consequence type
+    action_lower = chosen_action.lower()
+    
+    # Combat consequences
+    if any(word in action_lower for word in ["attack", "fire", "shoot", "engage", "assault"]):
+        if random.random() < difficulty_mod["event_chance"]:
+            if player_class == "Gunner" and random.random() < 0.3:
+                events.append("Your machine gun suppresses the enemy effectively!")
+                resources["ammo"] = max(0, resources.get("ammo", 0) - 2)
+            else:
+                damage = random.randint(difficulty_mod["health_loss_min"], difficulty_mod["health_loss_max"])
+                if player_class == "Sniper":
+                    damage = int(damage * 0.7)  # Snipers take less damage in combat
+                player["health"] = max(0, player.get("health", 100) - damage)
+                if damage > 0:
+                    events.append(f"Combat is fierce! You take {damage} damage.")
+                    
+    # Stealth consequences  
+    elif any(word in action_lower for word in ["sneak", "stealth", "quietly", "carefully", "scout"]):
+        if player_class == "Sniper" and random.random() < 0.4:
+            events.append("Your sniper training pays off - you move unseen.")
+            resources["intel"] = resources.get("intel", 0) + 1
+        elif random.random() < 0.3:
+            events.append("You successfully avoid enemy detection.")
+        else:
+            events.append("You advance cautiously through enemy territory.")
+            
+    # Leadership/tactical consequences
+    elif any(word in action_lower for word in ["order", "command", "lead", "coordinate", "direct"]):
+        if player_class == "Rifleman" and random.random() < 0.3:
+            events.append("Your leadership inspires the squad!")
+            player["morale"] = min(100, player.get("morale", 100) + 10)
+        elif random.random() < 0.2:
+            events.append("The squad follows your tactical direction.")
+            
+    # Medical consequences
+    elif any(word in action_lower for word in ["help", "treat", "medical", "wounded", "injured"]):
+        if player_class == "Medic" and random.random() < 0.4:
+            events.append("Your medical expertise saves valuable time and lives.")
+            player["morale"] = min(100, player.get("morale", 100) + 15)
+        
+    # Resource management events
+    if turn_count > 2 and random.random() < 0.25:
+        resource_events = [
+            "You find enemy ammunition supplies.",
+            "A wounded enemy drops medical supplies.",
+            "You discover abandoned equipment."
+        ]
+        if random.random() < 0.5:
+            resource_type = random.choice(["ammo", "medkit", "grenade"])
+            amount = random.randint(1, 3)
+            resources[resource_type] = resources.get(resource_type, 0) + amount
+            events.append(f"Found {amount} {resource_type}{'s' if amount > 1 else ''}!")
+    
+    # Squad events (late in mission)
+    if turn_count > 3 and random.random() < 0.2:
+        squad_events = [
+            "One of your squad members spots enemy movement.",
+            "Your squad provides covering fire.",
+            "A squad member reports radio chatter."
+        ]
+        events.append(random.choice(squad_events))
+    
+    return " ".join(events) if events else ""
 
 @app.route("/")
 def index():
@@ -279,6 +361,8 @@ def start_mission():
     
     story = ai_chat(system_msg, user_prompt)
     session["story"] = story
+    session["base_story"] = ""  # No base story on mission start
+    session["new_content"] = ""  # No new content on mission start
     session["story_history"].append({"turn": 0, "content": story, "type": "start"})
     
     logging.info(f"Mission started: {mission['name']}")
@@ -293,12 +377,21 @@ def play():
     
     choices = parse_choices(story)
     
+    # Progressive story display: separate base story from new content
+    base_story = session.get("base_story", "")
+    new_content = session.get("new_content", "")
+    turn_count = session.get("turn_count", 0)
+    
     return render_template("play.html", 
-                         story=story, 
+                         story=story,
+                         base_story=base_story,
+                         new_content=new_content,
                          choices=choices,
                          player=session.get("player", {}), 
                          resources=session.get("resources", {}),
-                         mission=session.get("mission", {}))
+                         mission=session.get("mission", {}),
+                         turn_count=turn_count,
+                         squad=session.get("squad", []))
 
 @app.route("/make_choice", methods=["POST"])
 @app.route("/choose", methods=["POST"])
@@ -331,7 +424,15 @@ def make_choice():
         # Update achievement stats for choice made
         session["player_stats"] = update_player_stats(session["player_stats"], "choice_made")
         
-        # Update story with player's choice
+        # Store the choice separately for progressive display
+        session["last_choice"] = chosen_action
+        
+        # Keep the base story for context, but separate new content
+        base_story = session.get("base_story", current_story)
+        if not session.get("base_story"):
+            session["base_story"] = current_story
+        
+        # Initialize story variable for compatibility
         story = current_story + f"\n\n> You chose: {chosen_action}\n"
         
         # Check for mission completion keywords
@@ -339,27 +440,20 @@ def make_choice():
         if any(keyword in chosen_action.lower() for keyword in completion_keywords):
             return complete_mission(story)
         
-        # Apply choice consequences
+        # Apply dynamic choice consequences
         player = session.get("player", {})
         resources = session.get("resources", {})
         mission = session.get("mission", {})
+        squad = session.get("squad", [])
         
-        # Random event consequences based on mission difficulty
-        difficulty_mod = get_difficulty_modifier(mission.get("difficulty", "Medium"))
+        # Enhanced consequence system
+        consequence_events = generate_dynamic_consequences(
+            chosen_action, player, resources, mission, turn_count
+        )
         
-        if random.random() < 0.4:  # 40% chance of taking damage
-            damage = random.randint(difficulty_mod["health_loss_min"], difficulty_mod["health_loss_max"])
-            player["health"] = max(0, player.get("health", 100) - damage)
-            if damage > 0:
-                story += f"The action costs you {damage} health points.\n"
-                # Update achievement stats for damage taken
-                session["player_stats"] = update_player_stats(session["player_stats"], "damage_taken", damage=damage)
-        else:
-            # Chance to find resources or recover health
-            if random.random() < 0.3:  # 30% chance
-                heal = random.randint(5, 15)
-                player["health"] = min(100, player.get("health", 100) + heal)
-                story += f"You recover {heal} health points.\n"
+        # Apply consequences to story
+        if consequence_events:
+            story += "\n" + consequence_events
         
         # Check if player died
         if player.get("health", 0) <= 0:
@@ -408,9 +502,11 @@ def make_choice():
         )
         
         new_content = ai_chat(system_msg, user_prompt)
-        story += new_content
         
-        # Save story progression to history
+        # Progressive story system: separate new content from base story
+        choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
+        
+        # Update story history for context
         story_history = session.get("story_history", [])
         story_history.append({
             "turn": turn_count,
@@ -420,6 +516,13 @@ def make_choice():
         })
         session["story_history"] = story_history
         
+        # Store new content separately for progressive display
+        session["new_content"] = choice_result
+        session["full_story"] = base_story + choice_result
+        
+        # Update main story for next iteration
+        session["story"] = session["full_story"]
+        
         # Check for combat and update stats
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
             if random.random() < 0.6:  # 60% chance to win combat
@@ -427,7 +530,6 @@ def make_choice():
                 session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
         
         # Auto-save game state
-        session["story"] = story
         session["player"] = player
         session["resources"] = resources
         session.permanent = True
@@ -439,23 +541,39 @@ def make_choice():
         return render_template("error.html", error=str(e))
 
 def complete_mission(story):
-    """Handle mission completion."""
+    """Handle enhanced mission completion with dynamic outcomes."""
     mission = session.get("mission", {})
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    turn_count = session.get("turn_count", 0)
+    story_history = session.get("story_history", [])
+    
     difficulty_mod = get_difficulty_modifier(mission.get("difficulty", "Medium"))
     
-    # Award score based on difficulty and health remaining
+    # Calculate dynamic mission outcome based on performance
+    mission_outcome = calculate_mission_outcome(player, resources, turn_count, story_history, difficulty_mod)
+    
+    # Award score based on performance factors
     base_score = difficulty_mod["reward"]
-    health_bonus = session.get("player", {}).get("health", 0)
-    total_score = base_score + health_bonus
+    health_bonus = player.get("health", 0)
+    stealth_bonus = mission_outcome.get("stealth_bonus", 0)
+    efficiency_bonus = mission_outcome.get("efficiency_bonus", 0)
+    
+    total_score = base_score + health_bonus + stealth_bonus + efficiency_bonus
     
     session["score"] = session.get("score", 0) + total_score
     session["missions_completed"] = session.get("missions_completed", 0) + 1
     
-    # Add to completed missions
+    # Add to completed missions with outcome rating
     completed = session.get("completed", [])
-    if mission.get("name") not in completed:
-        completed.append(mission["name"])
+    mission_name = mission.get("name")
+    if mission_name not in completed:
+        completed.append(mission_name)
         session["completed"] = completed
+    
+    # Store mission performance for future reference
+    session["mission_outcomes"] = session.get("mission_outcomes", {})
+    session["mission_outcomes"][mission_name] = mission_outcome
     
     # Update achievement stats
     session["player_stats"] = update_player_stats(
@@ -467,20 +585,91 @@ def complete_mission(story):
     # Check for new achievements
     new_achievements = check_achievements(session["player_stats"])
     if new_achievements:
-        # Mark achievements as unlocked
         unlocked = session["player_stats"].get("achievements_unlocked", [])
         for achievement_id in new_achievements:
             if achievement_id not in unlocked:
                 unlocked.append(achievement_id)
         session["player_stats"]["achievements_unlocked"] = unlocked
-        
-        # Store new achievements for display
         session["new_achievements"] = [get_achievement_display(aid) for aid in new_achievements]
     
-    story += f"\n\n--- MISSION COMPLETE ---\nScore earned: {total_score} points"
+    # Generate dynamic mission completion text
+    completion_text = generate_mission_completion_text(mission_outcome, total_score)
+    story += f"\n\n{completion_text}"
     session["story"] = story
     
     return redirect(url_for("base_camp"))
+
+def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, story_history: list, difficulty_mod: dict) -> dict:
+    """Calculate mission outcome based on player performance."""
+    outcome = {
+        "rating": "Standard",
+        "stealth_bonus": 0,
+        "efficiency_bonus": 0,
+        "special_notes": []
+    }
+    
+    # Health performance
+    health_percent = player.get("health", 100) / 100
+    if health_percent > 0.8:
+        outcome["rating"] = "Exceptional"
+        outcome["efficiency_bonus"] += 50
+        outcome["special_notes"].append("completed with minimal casualties")
+    elif health_percent > 0.5:
+        outcome["rating"] = "Good"
+        outcome["efficiency_bonus"] += 25
+    
+    # Turn efficiency (completing quickly)
+    if turn_count <= 3:
+        outcome["efficiency_bonus"] += 30
+        outcome["special_notes"].append("executed with tactical precision")
+    elif turn_count <= 5:
+        outcome["efficiency_bonus"] += 15
+    
+    # Resource management
+    total_resources = sum(resources.values())
+    if total_resources > 8:
+        outcome["stealth_bonus"] += 20
+        outcome["special_notes"].append("excellent resource conservation")
+    
+    # Class-specific bonuses from story choices
+    player_class = player.get("class", "Rifleman")
+    class_achievements = {
+        "Medic": "provided critical medical support",
+        "Sniper": "eliminated key targets with precision",
+        "Gunner": "provided devastating fire support",
+        "Demolitions": "destroyed strategic objectives",
+        "Rifleman": "demonstrated exceptional leadership"
+    }
+    
+    if random.random() < 0.4:  # 40% chance for class-specific recognition
+        outcome["special_notes"].append(class_achievements.get(player_class, "showed tactical skill"))
+    
+    return outcome
+
+def generate_mission_completion_text(outcome: dict, total_score: int) -> str:
+    """Generate dynamic mission completion text."""
+    rating = outcome["rating"]
+    notes = outcome["special_notes"]
+    
+    rating_messages = {
+        "Exceptional": "--- MISSION SUCCESS: EXCEPTIONAL PERFORMANCE ---",
+        "Good": "--- MISSION SUCCESS: GOOD PERFORMANCE ---",
+        "Standard": "--- MISSION COMPLETE ---"
+    }
+    
+    completion_text = rating_messages.get(rating, "--- MISSION COMPLETE ---")
+    
+    if notes:
+        completion_text += f"\n\nSpecial Recognition: {', '.join(notes).capitalize()}."
+    
+    completion_text += f"\n\nScore earned: {total_score} points"
+    
+    if outcome["efficiency_bonus"] > 0:
+        completion_text += f"\nEfficiency bonus: +{outcome['efficiency_bonus']}"
+    if outcome["stealth_bonus"] > 0:
+        completion_text += f"\nStealth bonus: +{outcome['stealth_bonus']}"
+    
+    return completion_text
 
 @app.route("/base")
 def base_camp():

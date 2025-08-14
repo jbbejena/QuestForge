@@ -6,10 +6,67 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNotifications();
     initializeAutoSave();
     initializeMobileOptimizations();
-    initializeTypewriterEffect();
+    initializeProgressiveStory();
     initializeLoadingStates();
     initializeGameActions();
 });
+
+// Progressive story display system
+function initializeProgressiveStory() {
+    const newContent = document.getElementById('new-content');
+    const baseStory = document.getElementById('base-story');
+    
+    if (newContent && baseStory) {
+        // Show base story immediately
+        baseStory.style.display = 'block';
+        
+        // Type out new content progressively
+        typeWriterEffect(newContent, function() {
+            // Auto-scroll to new content after typing
+            newContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    } else {
+        // Fallback to regular typewriter for full story
+        const fullStory = document.getElementById('full-story');
+        if (fullStory) {
+            typeWriterEffect(fullStory);
+        }
+    }
+}
+
+// Enhanced typewriter effect for progressive content
+function typeWriterEffect(element, callback) {
+    if (!element) return;
+    
+    const originalHTML = element.innerHTML;
+    const textContent = element.textContent || element.innerText;
+    
+    // Clear the element and show it
+    element.innerHTML = '';
+    element.style.display = 'block';
+    
+    let i = 0;
+    const speed = 20; // Faster typing for better UX
+    
+    function typeCharacter() {
+        if (i < textContent.length) {
+            // Handle line breaks
+            if (textContent.substring(i, i + 1) === '\n') {
+                element.innerHTML += '<br>';
+            } else {
+                element.innerHTML += textContent.charAt(i);
+            }
+            i++;
+            setTimeout(typeCharacter, speed);
+        } else {
+            // Restore original HTML formatting
+            element.innerHTML = originalHTML;
+            if (callback) callback();
+        }
+    }
+    
+    typeCharacter();
+}
 
 // Enhanced game actions
 function initializeGameActions() {

@@ -65,7 +65,22 @@
         <!-- Story Display -->
         <div class="story-card">
             <div class="story-content" id="story-content">
-                {{ story | replace('\n', '<br>') | safe }}
+                {% if base_story and new_content %}
+                    <!-- Static previous story -->
+                    <div id="base-story" class="base-story">
+                        {{ base_story | replace('\n', '<br>') | safe }}
+                    </div>
+                    
+                    <!-- New content that will be typed -->
+                    <div id="new-content" class="new-content" style="display: none;">
+                        {{ new_content | replace('\n', '<br>') | safe }}
+                    </div>
+                {% else %}
+                    <!-- First time or full story display -->
+                    <div id="full-story">
+                        {{ story | replace('\n', '<br>') | safe }}
+                    </div>
+                {% endif %}
             </div>
         </div>
 
@@ -76,11 +91,11 @@
                 <p>{{ player.special_ability or "Standard Training" }}</p>
             </div>
             
-            {% if session.squad %}
+            {% if squad %}
             <div class="squad-card">
                 <h4><i class="fas fa-users"></i> Squad</h4>
                 <div class="squad-members">
-                    {% for member in session.squad %}
+                    {% for member in squad %}
                     <span class="squad-member">{{ member }}</span>
                     {% endfor %}
                 </div>
