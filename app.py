@@ -422,6 +422,8 @@ def make_choice():
         # Get current story and parse fresh choices
         current_story = session.get("story", "")
         choices = parse_choices(current_story)
+        print(f"DEBUG: Current story length: {len(current_story)}")
+        print(f"DEBUG: Story ending: ...{current_story[-200:] if len(current_story) > 200 else current_story}")
         
         # Debug logging for choice selection
         raw_choice = request.form.get("choice", "1")
@@ -546,6 +548,7 @@ def make_choice():
         )
         
         new_content = ai_chat(system_msg, user_prompt)
+        print(f"DEBUG: AI Response: {new_content[:200]}...")
         
         # Progressive story system: separate new content from base story
         choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
@@ -563,9 +566,13 @@ def make_choice():
         # Progressive story system: only show new content typing
         session["new_content"] = choice_result
         
-        # Update the full story for next iteration
+        # Update the full story for next iteration - this is critical for choice parsing
         new_full_story = base_story + choice_result
         session["story"] = new_full_story
+        
+        # Verify choices are properly extracted from new content
+        updated_choices = parse_choices(new_full_story)
+        print(f"DEBUG: Updated choices after AI response: {updated_choices}")
         
         # Critical optimization: limit story history to prevent session bloat
         if len(story_history) > 6:
