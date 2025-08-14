@@ -104,19 +104,34 @@ def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tok
         return "(Communication disrupted) Radio static fills the air. Your squad looks to you for guidance.\n\n1. Try to re-establish contact.\n2. Proceed with the mission as planned.\n3. Return to base for new orders."
 
 def parse_choices(text: str):
-    """Extract numbered choices from AI-generated text."""
+    """Extract numbered choices from AI-generated text with improved parsing."""
     lines = text.splitlines()
     choices = []
     
     for line in lines:
-        # Match patterns like "1. Choice text" or "1) Choice text"
-        match = re.match(r"\s*([1-3])[\.\)]\s*(.+)", line)
-        if match:
-            choices.append(match.group(2).strip())
+        # Match patterns like "1. Choice text" or "1) Choice text" or "1 - Choice text"
+        match = re.match(r"\s*([1-3])[\.\)\-\s]+(.+)", line.strip())
+        if match and len(match.group(2).strip()) > 0:
+            choice_text = match.group(2).strip()
+            # Remove any markdown or HTML tags
+            choice_text = re.sub(r'<[^>]+>', '', choice_text)
+            choice_text = re.sub(r'\*\*([^\*]*)\*\*', r'\1', choice_text)  # Remove bold
+            choices.append(choice_text)
+    
+    # Fallback choices if parsing fails or insufficient choices found
+    fallback_choices = [
+        "Advance cautiously forward.",
+        "Take defensive position and observe.",
+        "Retreat to a safer location."
+    ]
     
     # Ensure we always have exactly 3 choices
     while len(choices) < 3:
-        choices.append("Continue forward.")
+        fallback_index = len(choices)
+        if fallback_index < len(fallback_choices):
+            choices.append(fallback_choices[fallback_index])
+        else:
+            choices.append("Continue with the mission.")
     
     return choices[:3]
 
@@ -360,10 +375,13 @@ def start_mission():
     )
     
     story = ai_chat(system_msg, user_prompt)
+    
+    # Initialize clean session for new mission
     session["story"] = story
-    session["base_story"] = ""  # No base story on mission start
-    session["new_content"] = ""  # No new content on mission start
-    session["story_history"].append({"turn": 0, "content": story, "type": "start"})
+    session["base_story"] = ""  # Reset base story
+    session["new_content"] = ""  # Reset new content
+    session["turn_count"] = 0  # Reset turn counter
+    session["story_history"] = [{"turn": 0, "content": story, "type": "start"}]  # Fresh history
     
     logging.info(f"Mission started: {mission['name']}")
     return redirect(url_for("play"))
@@ -399,13 +417,21 @@ def make_choice():
     """Process player's choice and continue story."""
     try:
         choice_index = int(request.form.get("choice", "1")) - 1
+        
+        # Get current story and parse fresh choices
         current_story = session.get("story", "")
         choices = parse_choices(current_story)
+        
+        # Debug logging for choice selection
+        logging.info(f"Choice index received: {choice_index + 1}")
+        logging.info(f"Available choices: {choices}")
         
         if 0 <= choice_index < len(choices):
             chosen_action = choices[choice_index]
         else:
-            chosen_action = "Continue forward."
+            chosen_action = choices[0] if choices else "Continue forward."
+            
+        logging.info(f"Selected action: {chosen_action}")
         
         # Increment turn counter and update mission phase
         turn_count = session.get("turn_count", 0) + 1
@@ -427,10 +453,17 @@ def make_choice():
         # Store the choice separately for progressive display
         session["last_choice"] = chosen_action
         
-        # Keep the base story for context, but separate new content
-        base_story = session.get("base_story", current_story)
-        if not session.get("base_story"):
+        # Progressive story management
+        base_story = session.get("base_story", "")
+        
+        # On first turn, set the base story
+        if turn_count == 1:
             session["base_story"] = current_story
+            base_story = current_story
+        elif not base_story:
+            # Fallback for missing base story
+            session["base_story"] = current_story
+            base_story = current_story
         
         # Initialize story variable for compatibility
         story = current_story + f"\n\n> You chose: {chosen_action}\n"
@@ -486,27 +519,26 @@ def make_choice():
         
         # Build comprehensive story context to prevent AI confusion
         story_history = session.get("story_history", [])
-        full_story_context = session.get("full_story", base_story)
         
-        # Create detailed context from all previous turns
+        # Create a concise but complete context from recent story progression
         context_summary = ""
+        recent_story_progression = ""
+        
+        # Use the last 2-3 turns for immediate context
         if len(story_history) > 1:
-            for i, turn in enumerate(story_history[-3:]):  # Last 3 turns for context
-                if turn.get("choice"):
-                    context_summary += f"Turn {turn.get('turn', i)}: Chose '{turn['choice']}' -> {turn.get('content', '')[:150]}...\n"
+            recent_turns = story_history[-2:]  # Focus on most recent context
+            for turn in recent_turns:
+                if turn.get("choice") and turn.get("content"):
+                    context_summary += f"Previous: '{turn['choice']}' resulted in: {turn['content'][:100]}...\n"
+                    recent_story_progression += f"> {turn['choice']}\n{turn['content']}\n\n"
         
         user_prompt = (
-            f"ONGOING MISSION CONTEXT:\n"
-            f"Mission: {mission.get('name')} - {mission.get('desc')}\n"
-            f"Player: {player.get('name')} ({player.get('rank')} {player.get('class')})\n"
-            f"Current Status: Health {player.get('health', 100)}/100, "
-            f"Ammo: {resources.get('ammo', 0)}, Medkits: {resources.get('medkit', 0)}, Grenades: {resources.get('grenade', 0)}\n"
-            f"Turn: {turn_count}, Phase: {mission_phase}\n\n"
-            f"RECENT STORY PROGRESSION:\n{context_summary}\n"
-            f"CURRENT SITUATION:\n{full_story_context[-800:]}\n\n"
-            f"PLAYER'S LATEST CHOICE: {chosen_action}\n\n"
-            f"Continue from where the story left off. Show immediate consequences of this choice. "
-            f"Do NOT create new scenarios or restart the mission. Build upon the existing narrative."
+            f"MISSION: {mission.get('name')} (Turn {turn_count})\n"
+            f"PLAYER: {player.get('name')} - {player.get('class')} with {player.get('health', 100)} health\n"
+            f"PHASE: {mission_phase}\n\n"
+            f"RECENT STORY:\n{recent_story_progression}"
+            f"CURRENT CHOICE: {chosen_action}\n\n"
+            f"Show the immediate results of this choice. Continue this exact storyline."
         )
         
         new_content = ai_chat(system_msg, user_prompt)
@@ -524,16 +556,23 @@ def make_choice():
         })
         session["story_history"] = story_history
         
-        # Store new content separately for progressive display
+        # Progressive story system: only show new content typing
         session["new_content"] = choice_result
-        session["full_story"] = base_story + choice_result
         
-        # Update main story for next iteration
-        session["story"] = session["full_story"]
+        # Update the full story for next iteration
+        new_full_story = base_story + choice_result
+        session["story"] = new_full_story
         
-        # Optimize session size by truncating very old story history
-        if len(story_history) > 10:
-            session["story_history"] = story_history[-8:]  # Keep last 8 turns
+        # Critical optimization: limit story history to prevent session bloat
+        if len(story_history) > 6:
+            session["story_history"] = story_history[-4:]  # Keep only last 4 turns
+            
+        # Also limit the base story size to prevent exponential growth
+        if len(base_story) > 3000:  # About 3KB limit
+            # Keep only the mission start and recent content
+            story_lines = base_story.split('\n')
+            if len(story_lines) > 50:
+                session["base_story"] = '\n'.join(story_lines[:20] + story_lines[-20:])  # Keep start and recent
         
         # Check for combat and update stats
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
