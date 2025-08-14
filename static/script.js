@@ -8,7 +8,180 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeMobileOptimizations();
     initializeTypewriterEffect();
     initializeLoadingStates();
+    initializeGameActions();
 });
+
+// Enhanced game actions
+function initializeGameActions() {
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Number keys for quick choice selection
+        if (e.key >= '1' && e.key <= '3') {
+            const choiceBtn = document.querySelector(`button[value="${e.key}"]`);
+            if (choiceBtn && !choiceBtn.disabled) {
+                choiceBtn.click();
+            }
+        }
+        
+        // Quick save/load shortcuts
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case 's':
+                    e.preventDefault();
+                    quickSave();
+                    break;
+                case 'l':
+                    e.preventDefault();
+                    quickLoad();
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    useItem('medkit');
+                    break;
+                case 'g':
+                    e.preventDefault();
+                    useItem('grenade');
+                    break;
+            }
+        }
+    });
+}
+
+// Use item function
+function useItem(itemType) {
+    fetch('/use_item', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `item=${itemType}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            
+            // Update UI elements
+            if (data.health !== undefined) {
+                updateHealthDisplay(data.health);
+            }
+            if (data.morale !== undefined) {
+                updateMoraleDisplay(data.morale);
+            }
+            if (data.grenades !== undefined) {
+                updateResourceDisplay('grenade', data.grenades);
+            }
+            
+            // Refresh the page to update resource counts
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Action failed. Try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Quick save function
+function quickSave() {
+    fetch('/quick_save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message || 'Save failed', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Save failed. Try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Quick load function
+function quickLoad() {
+    fetch('/quick_load', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            if (data.redirect) {
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 1000);
+            }
+        } else {
+            showNotification(data.message || 'No save found', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Load failed. Try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Update health display
+function updateHealthDisplay(health) {
+    const healthFill = document.querySelector('.progress-fill');
+    const healthText = document.querySelector('.progress-text');
+    
+    if (healthFill && healthText) {
+        healthFill.style.width = health + '%';
+        healthText.textContent = health + '/100';
+        
+        // Update health bar color
+        healthFill.className = 'progress-fill';
+        if (health > 70) {
+            healthFill.classList.add('health-good');
+        } else if (health > 30) {
+            healthFill.classList.add('health-warning');
+        } else {
+            healthFill.classList.add('health-danger');
+        }
+    }
+}
+
+// Update morale display
+function updateMoraleDisplay(morale) {
+    const moraleFill = document.querySelector('.morale-fill');
+    const moraleText = document.querySelector('.morale .progress-text');
+    
+    if (moraleFill && moraleText) {
+        moraleFill.style.width = morale + '%';
+        moraleText.textContent = morale + '%';
+    }
+}
+
+// Update resource display
+function updateResourceDisplay(resourceType, count) {
+    const resourceElement = document.querySelector(`.${resourceType}-btn`);
+    if (resourceElement) {
+        const buttonText = resourceElement.innerHTML;
+        const newText = buttonText.replace(/\(\d+\)/, `(${count})`);
+        resourceElement.innerHTML = newText;
+        
+        if (count <= 0) {
+            resourceElement.disabled = true;
+        } else {
+            resourceElement.disabled = false;
+        }
+    }
+}
 
 // Touch and Mobile Optimizations
 function initializeTouchHandlers() {

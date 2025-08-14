@@ -27,23 +27,37 @@
                     <label><i class="fas fa-heart"></i> Health</label>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: {{ player.health }}%"></div>
-                        <span class="progress-text">{{ player.health }}/100</span>
+                        <span class="progress-text">{{ player.health }}/{{ player.max_health or 100 }}</span>
+                    </div>
+                </div>
+
+                <div class="morale-bar">
+                    <label><i class="fas fa-shield-alt"></i> Morale</label>
+                    <div class="progress-bar morale">
+                        <div class="progress-fill morale-fill" style="width: {{ player.morale or 100 }}%"></div>
+                        <span class="progress-text">{{ player.morale or 100 }}%</span>
                     </div>
                 </div>
                 
                 <div class="resources">
-                    <span class="resource">
+                    <span class="resource" title="Ammunition">
                         <i class="fas fa-bullseye"></i>
                         {{ resources.ammo }}
                     </span>
-                    <span class="resource">
+                    <span class="resource" title="Medical Kits">
                         <i class="fas fa-first-aid"></i>
                         {{ resources.medkit }}
                     </span>
-                    <span class="resource">
+                    <span class="resource" title="Grenades">
                         <i class="fas fa-bomb"></i>
                         {{ resources.grenade }}
                     </span>
+                    {% if resources.intel > 0 %}
+                    <span class="resource" title="Intelligence">
+                        <i class="fas fa-file-alt"></i>
+                        {{ resources.intel }}
+                    </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -53,6 +67,48 @@
             <div class="story-content" id="story-content">
                 {{ story | replace('\n', '<br>') | safe }}
             </div>
+        </div>
+
+        <!-- Squad and Special Ability Info -->
+        <div class="squad-info">
+            <div class="ability-card">
+                <h4><i class="fas fa-star"></i> Special Ability</h4>
+                <p>{{ player.special_ability or "Standard Training" }}</p>
+            </div>
+            
+            {% if session.squad %}
+            <div class="squad-card">
+                <h4><i class="fas fa-users"></i> Squad</h4>
+                <div class="squad-members">
+                    {% for member in session.squad %}
+                    <span class="squad-member">{{ member }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button onclick="useItem('medkit')" class="action-btn medkit-btn" {% if resources.medkit <= 0 %}disabled{% endif %}>
+                <i class="fas fa-first-aid"></i>
+                Use Medkit ({{ resources.medkit }})
+            </button>
+            
+            <button onclick="useItem('grenade')" class="action-btn grenade-btn" {% if resources.grenade <= 0 %}disabled{% endif %}>
+                <i class="fas fa-bomb"></i>
+                Use Grenade ({{ resources.grenade }})
+            </button>
+            
+            <button onclick="quickSave()" class="action-btn save-btn">
+                <i class="fas fa-save"></i>
+                Quick Save
+            </button>
+            
+            <button onclick="quickLoad()" class="action-btn load-btn">
+                <i class="fas fa-upload"></i>
+                Quick Load
+            </button>
         </div>
 
         <!-- Choices -->

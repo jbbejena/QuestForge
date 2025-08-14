@@ -197,6 +197,105 @@ h1, h2, h3, h4, h5, h6 {
     min-height: 40px;
 }
 
+/* Enhanced UI Components */
+.squad-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin: var(--spacing-lg) 0;
+}
+
+.ability-card, .squad-card {
+    background: var(--color-dark);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+}
+
+.ability-card h4, .squad-card h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+}
+
+.squad-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.squad-member {
+    background: var(--color-primary);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 12px;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--spacing-sm);
+    margin: var(--spacing-lg) 0;
+}
+
+.action-btn {
+    background: var(--color-dark);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    min-height: 44px;
+}
+
+.action-btn:hover:not(:disabled) {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.medkit-btn:hover:not(:disabled) {
+    background: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.grenade-btn:hover:not(:disabled) {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.save-btn:hover:not(:disabled) {
+    background: var(--color-info);
+    border-color: var(--color-info);
+}
+
+.load-btn:hover:not(:disabled) {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+}
+
+.morale-bar {
+    margin-bottom: var(--spacing-sm);
+}
+
+.morale-fill {
+    background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);
+}
+
 /* Forms */
 .character-form {
     padding: var(--spacing-lg);

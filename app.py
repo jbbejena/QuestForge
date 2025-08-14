@@ -66,12 +66,24 @@ def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tok
     Returns AI-generated text or fallback content if API is unavailable.
     """
     if client is None:
-        # Fallback content when AI is not available
-        fallback_stories = [
-            "The morning mist hangs heavy over the battlefield as you advance with your squad. Intelligence reports enemy movement ahead.\n\n1. Move forward cautiously through the trees.\n2. Send a scout to investigate the area.\n3. Set up defensive positions and wait.",
-            "Your radio crackles with urgent messages from command. The situation is developing rapidly.\n\n1. Request immediate reinforcements.\n2. Advance to the objective as planned.\n3. Fall back to a safer position.",
-            "The sound of distant artillery echoes across the valley. Your squad awaits your orders.\n\n1. Press forward to the objective.\n2. Take cover and assess the situation.\n3. Contact HQ for new instructions."
-        ]
+        # Enhanced fallback content with progression tracking
+        turn_count = session.get("turn_count", 0)
+        
+        if turn_count == 0:
+            fallback_stories = [
+                "The morning mist hangs heavy over the battlefield as you advance with your squad. Intelligence reports enemy movement ahead.\n\n1. Move forward cautiously through the trees.\n2. Send a scout to investigate the area.\n3. Set up defensive positions and wait.",
+                "Your radio crackles with urgent messages from command. The situation is developing rapidly.\n\n1. Request immediate reinforcements.\n2. Advance to the objective as planned.\n3. Fall back to a safer position."
+            ]
+        elif turn_count < 3:
+            fallback_stories = [
+                "As you advance, the tension increases. Your squad spots movement in the distance.\n\n1. Order the squad to take cover.\n2. Advance closer to investigate.\n3. Use binoculars to assess the threat.",
+                "Enemy patrol spotted ahead! Your heart pounds as you make a critical decision.\n\n1. Engage the enemy immediately.\n2. Wait for them to pass.\n3. Circle around to avoid contact."
+            ]
+        else:
+            fallback_stories = [
+                "The objective is within reach. This is your chance to complete the mission.\n\n1. Make a final push to the objective.\n2. Secure the area first.\n3. Call for backup before proceeding."
+            ]
+        
         return random.choice(fallback_stories)
     
     try:
@@ -138,15 +150,29 @@ def create_character():
     session.clear()
     session["player_stats"] = player_stats
     
-    # Create player character
+    # Create player character with enhanced attributes
     player_class = request.form.get("char_class", "Rifleman")
+    weapon = request.form.get("weapon", "Rifle")
+    
+    # Class-specific special abilities
+    special_abilities = {
+        "Rifleman": "Squad Leader - Boosts squad morale and coordination",
+        "Medic": "Field Medicine - Can heal wounded squad members quickly",
+        "Gunner": "Suppressing Fire - Can pin down multiple enemies",
+        "Sniper": "Precision Shot - One-shot elimination of priority targets",
+        "Demolitions": "Explosive Expert - Double damage with grenades and charges"
+    }
+    
     session["player"] = {
         "name": request.form.get("name", "Rookie").strip() or "Rookie",
         "rank": request.form.get("rank", "Private"),
         "class": player_class,
-        "weapon": request.form.get("weapon", "Rifle"),
+        "weapon": weapon,
         "health": 100,
-        "max_health": 100
+        "max_health": 100,
+        "morale": 100,
+        "experience": 0,
+        "special_ability": special_abilities.get(player_class, "Standard Training")
     }
     
     # Update achievement stats
@@ -156,22 +182,31 @@ def create_character():
         class_name=player_class
     )
     
-    # Initialize resources
-    session["resources"] = {
-        "medkit": 2,
-        "grenade": 2,
-        "ammo": 12,
-        "intel": 0
-    }
+    # Class-specific resource bonuses
+    base_resources = {"medkit": 2, "grenade": 2, "ammo": 12, "intel": 0}
     
-    # Initialize squad
-    session["squad"] = [
-        "Smith (Medic)",
-        "Johnson (Gunner)", 
-        "Williams (Sniper)",
-        "Brown (Demolitions)",
-        "Jones (Rifleman)"
+    if player_class == "Medic":
+        base_resources["medkit"] += 2
+    elif player_class == "Gunner":
+        base_resources["ammo"] += 8
+    elif player_class == "Demolitions":
+        base_resources["grenade"] += 3
+    elif player_class == "Sniper":
+        base_resources["ammo"] += 4
+    else:  # Rifleman
+        base_resources["ammo"] += 3
+        base_resources["medkit"] += 1
+    
+    session["resources"] = base_resources
+    
+    # Generate dynamic squad with varied specializations
+    squad_members = [
+        "Thompson (Rifleman)", "Garcia (Medic)", "Kowalski (Gunner)",
+        "Anderson (Sniper)", "Martinez (Demo)", "Chen (Scout)",
+        "O'Brien (Engineer)", "Williams (Radio)", "Jackson (Veteran)"
     ]
+    squad_size = random.randint(3, 5)
+    session["squad"] = random.sample(squad_members, squad_size)
     
     # Game progress tracking
     session["completed"] = []
@@ -209,6 +244,11 @@ def start_mission():
     mission = next((m for m in MISSIONS if m["name"] == chosen_mission), MISSIONS[0])
     session["mission"] = mission
     
+    # Initialize turn tracking and story progression
+    session["turn_count"] = 0
+    session["story_history"] = []
+    session["mission_phase"] = "start"  # start, middle, climax, end
+    
     # Mission briefing reward
     resources = session.get("resources", {})
     resources["ammo"] = resources.get("ammo", 0) + 3
@@ -217,26 +257,29 @@ def start_mission():
     player = session.get("player", {})
     squad = session.get("squad", [])
     
-    # Generate initial mission scenario
+    # Generate initial mission scenario with enhanced prompting
     system_msg = (
-        "You are a WWII text-adventure game master. "
-        "Create an immersive opening scenario for the player's chosen mission. "
-        "Write 2-3 paragraphs setting the scene, mentioning the player's rank, class, and weapon. "
-        "Always end with exactly 3 numbered tactical choices (1, 2, 3). "
-        "Make the scenario authentic to WWII combat operations. "
-        "If combat is imminent, include the word 'combat' clearly in the text."
+        "You are a master WWII text-adventure game narrator. Create an immersive opening scenario that:"
+        "- Sets a vivid, authentic WWII battlefield atmosphere"
+        "- Establishes clear stakes and mission urgency"
+        "- Mentions the player's military details naturally"
+        "- Builds tension and immersion"
+        "- ALWAYS ends with exactly 3 numbered tactical choices (format: 1. [action])"
+        "- Each choice should feel meaningfully different"
+        "- Keep the scenario focused and engaging (2-3 paragraphs max)"
     )
     
     user_prompt = (
-        f"Player: {player.get('name')} — {player.get('rank')} {player.get('class')} equipped with {player.get('weapon')}\n"
-        f"Squad: {', '.join(squad)}\n"
-        f"Mission: {mission['name']} — {mission['desc']}\n"
-        f"Difficulty: {mission['difficulty']}\n"
-        "Create the opening scenario with 3 numbered tactical choices."
+        f"MISSION START: {mission['name']} ({mission['difficulty']} difficulty)\n"
+        f"Objective: {mission['desc']}\n\n"
+        f"Player: {player.get('rank')} {player.get('name')}, {player.get('class')} with {player.get('weapon')}\n"
+        f"Squad: {', '.join(squad) if squad else 'Solo mission'}\n\n"
+        "Create an engaging opening scenario that establishes the mission context and provides 3 tactical choices."
     )
     
     story = ai_chat(system_msg, user_prompt)
     session["story"] = story
+    session["story_history"].append({"turn": 0, "content": story, "type": "start"})
     
     logging.info(f"Mission started: {mission['name']}")
     return redirect(url_for("play"))
@@ -271,7 +314,19 @@ def make_choice():
         else:
             chosen_action = "Continue forward."
         
-        logging.info(f"Player chose option {choice_index + 1}: {chosen_action}")
+        # Increment turn counter and update mission phase
+        turn_count = session.get("turn_count", 0) + 1
+        session["turn_count"] = turn_count
+        
+        # Determine mission phase based on turn count
+        if turn_count <= 2:
+            session["mission_phase"] = "middle"
+        elif turn_count <= 4:
+            session["mission_phase"] = "climax"
+        else:
+            session["mission_phase"] = "end"
+        
+        logging.info(f"Turn {turn_count}: Player chose option {choice_index + 1}: {chosen_action}")
         
         # Update achievement stats for choice made
         session["player_stats"] = update_player_stats(session["player_stats"], "choice_made")
@@ -313,24 +368,57 @@ def make_choice():
             session["story"] = story
             return redirect(url_for("base_camp"))
         
-        # Continue story generation
+        # Enhanced story generation with context
+        mission_phase = session.get("mission_phase", "middle")
+        mission = session.get("mission", {})
+        
+        # Dynamic system message based on mission phase
+        if mission_phase == "middle":
+            phase_instruction = "Develop the mission further. Introduce challenges, obstacles, or tactical situations that test the player's decisions."
+        elif mission_phase == "climax":
+            phase_instruction = "Build toward the mission climax. Increase tension and make stakes higher. The objective should be within reach but challenging."
+        else:  # end phase
+            phase_instruction = "Move toward mission completion. Provide opportunities to complete the objective or create final dramatic moments."
+        
         system_msg = (
-            "Continue the WWII text adventure story. "
-            "Respond to the player's choice with consequences and advance the narrative. "
-            "Always end with exactly 3 numbered tactical choices (1, 2, 3). "
-            "Make combat realistic and tense. "
-            "If the mission should end, include clear completion language."
+            f"Continue this WWII text adventure story. You are turn {turn_count} of this mission. "
+            f"Phase: {mission_phase}. {phase_instruction} "
+            "IMPORTANT: Build directly on the player's choice - show immediate consequences and reactions. "
+            "Always end with exactly 3 numbered tactical choices (format: 1. [action]). "
+            "Make each choice feel distinct and meaningful. "
+            "Keep responses focused and engaging (1-2 paragraphs plus choices). "
+            "If the mission should end, include completion keywords like 'mission complete' or 'objective secured'."
         )
         
+        # Get recent story context for better continuity
+        story_history = session.get("story_history", [])
+        recent_context = ""
+        if len(story_history) > 0:
+            recent_context = f"Previous context: {story_history[-1].get('content', '')[:200]}...\n\n"
+        
         user_prompt = (
-            f"Current situation: {story}\n"
-            f"Player health: {player.get('health', 100)}/100\n"
-            f"Resources: Ammo={resources.get('ammo', 0)}, Medkits={resources.get('medkit', 0)}, Grenades={resources.get('grenade', 0)}\n"
-            "Continue the story and provide 3 tactical choices."
+            f"Mission: {mission.get('name')} - {mission.get('desc')}\n"
+            f"Turn {turn_count} | Phase: {mission_phase}\n"
+            f"Player: {player.get('name')} ({player.get('rank')} {player.get('class')})\n"
+            f"Health: {player.get('health', 100)}/100 | "
+            f"Ammo: {resources.get('ammo', 0)} | Medkits: {resources.get('medkit', 0)} | Grenades: {resources.get('grenade', 0)}\n\n"
+            f"{recent_context}"
+            f"Player's choice: {chosen_action}\n\n"
+            "Continue the story showing the consequences of this choice and provide 3 new tactical options."
         )
         
         new_content = ai_chat(system_msg, user_prompt)
         story += new_content
+        
+        # Save story progression to history
+        story_history = session.get("story_history", [])
+        story_history.append({
+            "turn": turn_count,
+            "choice": chosen_action,
+            "content": new_content,
+            "type": "continuation"
+        })
+        session["story_history"] = story_history
         
         # Check for combat and update stats
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
@@ -338,9 +426,11 @@ def make_choice():
                 session["battles_won"] = session.get("battles_won", 0) + 1
                 session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
         
+        # Auto-save game state
         session["story"] = story
         session["player"] = player
         session["resources"] = resources
+        session.permanent = True
         
         return redirect(url_for("play"))
         
@@ -445,10 +535,18 @@ def use_item():
     resources = session.get("resources", {})
     
     if item_type == "medkit" and resources.get("medkit", 0) > 0:
-        if player.get("health", 100) < 100:
+        max_health = player.get("max_health", 100)
+        if player.get("health", 100) < max_health:
+            # Class-specific healing bonuses
             heal_amount = 30
-            player["health"] = min(100, player.get("health", 100) + heal_amount)
+            if player.get("class") == "Medic":
+                heal_amount = 45  # Medics are more efficient
+            
+            player["health"] = min(max_health, player.get("health", 100) + heal_amount)
             resources["medkit"] -= 1
+            
+            # Boost morale when healing
+            player["morale"] = min(100, player.get("morale", 100) + 10)
             
             # Update achievement stats
             session["player_stats"] = update_player_stats(session["player_stats"], "item_used")
@@ -459,7 +557,8 @@ def use_item():
             return jsonify({
                 "success": True,
                 "message": f"Medkit used! Restored {heal_amount} health.",
-                "health": player["health"]
+                "health": player["health"],
+                "morale": player["morale"]
             })
         else:
             return jsonify({
@@ -467,10 +566,59 @@ def use_item():
                 "message": "You are already at full health."
             })
     
+    elif item_type == "grenade" and resources.get("grenade", 0) > 0:
+        resources["grenade"] -= 1
+        session["resources"] = resources
+        
+        # Class-specific grenade effects
+        effect_msg = "Grenade thrown! Enemy position compromised."
+        if player.get("class") == "Demolitions":
+            effect_msg = "Enhanced explosive! Devastating enemy casualties!"
+        
+        return jsonify({
+            "success": True,
+            "message": effect_msg,
+            "grenades": resources["grenade"]
+        })
+    
     return jsonify({
         "success": False,
         "message": "Cannot use that item right now."
     })
+
+@app.route("/quick_save", methods=["POST"])
+def quick_save():
+    """Save current game state."""
+    save_data = {
+        "player": session.get("player", {}),
+        "resources": session.get("resources", {}),
+        "mission": session.get("mission", {}),
+        "story": session.get("story", ""),
+        "turn_count": session.get("turn_count", 0),
+        "mission_phase": session.get("mission_phase", "start"),
+        "score": session.get("score", 0),
+        "save_timestamp": "Current mission state"
+    }
+    
+    session["quick_save"] = save_data
+    return jsonify({"success": True, "message": "Game progress saved!"})
+
+@app.route("/quick_load", methods=["POST"])  
+def quick_load():
+    """Load saved game state."""
+    save_data = session.get("quick_save")
+    if save_data:
+        for key, value in save_data.items():
+            if key != "save_timestamp":
+                session[key] = value
+        
+        return jsonify({
+            "success": True, 
+            "message": "Save loaded! Returning to saved position.",
+            "redirect": url_for("play")
+        })
+    
+    return jsonify({"success": False, "message": "No saved game found."})
 
 @app.route("/reset")
 def reset():
