@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Failed - WWII Text Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                <i class="fas fa-skull-crossbones"></i>
+                Mission Failed
+            </h1>
+            <p class="subtitle">Casualties of war</p>
+        </header>
+
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-cross"></i> Fallen in Battle</h2>
+            </div>
+            
+            <div style="padding: var(--spacing-lg); text-align: center;">
+                {% if player %}
+                <div class="soldier-status" style="margin-bottom: var(--spacing-xl);">
+                    <h3>{{ player.rank }} {{ player.name }}</h3>
+                    <p class="soldier-class">{{ player.class }} - {{ player.weapon }}</p>
+                    <p style="color: var(--color-danger); margin-top: var(--spacing-md);">
+                        <i class="fas fa-heart-broken"></i>
+                        Killed in Action
+                    </p>
+                </div>
+                {% endif %}
+
+                <div class="stats-grid" style="margin-bottom: var(--spacing-xl);">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>{{ score or 0 }}</h3>
+                            <p>Final Score</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>{{ missions_completed or 0 }}</h3>
+                            <p>Missions Completed</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-crosshairs"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>{{ battles_won or 0 }}</h3>
+                            <p>Battles Won</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: var(--color-dark); padding: var(--spacing-lg); border-radius: var(--border-radius); margin-bottom: var(--spacing-xl); border: 1px solid var(--color-border);">
+                    <p><i class="fas fa-quote-left"></i></p>
+                    <p style="font-style: italic; color: var(--color-gray); margin: var(--spacing-md) 0;">
+                        "In war, there are no unwounded soldiers."<br>
+                        - José Narosky
+                    </p>
+                    <p><i class="fas fa-quote-right"></i></p>
+                </div>
+
+                <div class="action-buttons">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-large">
+                        <i class="fas fa-plus"></i>
+                        Create New Soldier
+                    </a>
+                    
+                    <a href="{{ url_for('base') }}" class="btn btn-secondary">
+                        <i class="fas fa-home"></i>
+                        Return to Base
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="achievements">
+            <h3><i class="fas fa-medal"></i> Service Record</h3>
+            <div class="achievement-list">
+                {% if score and score > 100 %}
+                <div class="achievement unlocked">
+                    <i class="fas fa-star"></i>
+                    <span>Served with Honor - Earned over 100 points</span>
+                </div>
+                {% endif %}
+                
+                {% if missions_completed and missions_completed >= 1 %}
+                <div class="achievement unlocked">
+                    <i class="fas fa-flag"></i>
+                    <span>Mission Veteran - Completed at least one mission</span>
+                </div>
+                {% endif %}
+                
+                {% if battles_won and battles_won >= 3 %}
+                <div class="achievement unlocked">
+                    <i class="fas fa-shield"></i>
+                    <span>Combat Survivor - Won multiple battles</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

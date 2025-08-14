@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WWII Text Adventure - Character Creation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                <i class="fas fa-helmet-battle"></i>
+                WWII Text Adventure
+            </h1>
+            <p class="subtitle">Create your soldier and begin your mission</p>
+        </header>
+
+        <div class="card character-creation">
+            <div class="card-header">
+                <h2><i class="fas fa-user-plus"></i> Character Creation</h2>
+            </div>
+            
+            <form method="post" action="{{ url_for('create_character') }}" class="character-form">
+                <div class="form-group">
+                    <label for="name">
+                        <i class="fas fa-signature"></i>
+                        Soldier Name
+                    </label>
+                    <input type="text" 
+                           id="name" 
+                           name="name" 
+                           placeholder="Enter your name" 
+                           class="form-input"
+                           maxlength="20"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="rank">
+                        <i class="fas fa-medal"></i>
+                        Military Rank
+                    </label>
+                    <select id="rank" name="rank" class="form-select" required>
+                        {% for rank in ranks %}
+                        <option value="{{ rank }}">{{ rank }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="char_class">
+                        <i class="fas fa-users"></i>
+                        Specialization
+                    </label>
+                    <select id="char_class" name="char_class" class="form-select" required>
+                        {% for class in classes %}
+                        <option value="{{ class }}">{{ class }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="weapon">
+                        <i class="fas fa-crosshairs"></i>
+                        Primary Weapon
+                    </label>
+                    <select id="weapon" name="weapon" class="form-select" required>
+                        {% for weapon in weapons %}
+                        <option value="{{ weapon }}">{{ weapon }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-large">
+                    <i class="fas fa-play"></i>
+                    Begin Campaign
+                </button>
+            </form>
+        </div>
+
+        <div class="game-info">
+            <h3><i class="fas fa-info-circle"></i> About the Game</h3>
+            <ul>
+                <li>Experience AI-powered storytelling in WWII settings</li>
+                <li>Make tactical decisions that affect your mission outcomes</li>
+                <li>Manage your health, resources, and squad effectively</li>
+                <li>Complete various missions with different difficulty levels</li>
+                <li>Unlock achievements and learn historical WWII trivia</li>
+            </ul>
+        </div>
+
+        {% if achievements_count > 0 %}
+        <div class="achievements-preview">
+            <a href="{{ url_for('achievements') }}" class="btn btn-secondary">
+                <i class="fas fa-trophy"></i>
+                View Achievements ({{ achievements_count }} unlocked)
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

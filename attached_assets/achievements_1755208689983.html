@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Achievements - WWII Text Adventure{% endblock %}
+
+{% block content %}
+<div class="achievements-container">
+    <div class="achievements-header">
+        <h1>🏆 War Records & Achievements</h1>
+        <p>Your journey through history and the trivia you've unlocked</p>
+        <div class="stats-summary">
+            <span>{{ player_stats.achievements_unlocked|length }}/{{ achievements|length }} Achievements Unlocked</span>
+        </div>
+    </div>
+
+    <!-- New Achievement Notifications -->
+    {% if new_achievements %}
+    <div class="achievement-notifications">
+        <h2>🎖️ New Achievements Unlocked!</h2>
+        {% for achievement in new_achievements %}
+        <div class="achievement-notification">
+            <div class="achievement-icon">{{ achievement.icon }}</div>
+            <div class="achievement-info">
+                <h3>{{ achievement.name }}</h3>
+                <p>{{ achievement.description }}</p>
+                <div class="trivia-unlock">
+                    <strong>{{ achievement.trivia_title }}</strong>
+                    <p>{{ achievement.trivia_fact }}</p>
+                    <span class="trivia-category">{{ achievement.trivia_category }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Achievement Grid -->
+    <div class="achievements-grid">
+        {% for achievement in achievements %}
+        <div class="achievement-card {% if achievement.unlocked == True %}unlocked{% else %}locked{% endif %}">
+            <div class="achievement-icon">
+                {{ achievement.icon if achievement.unlocked else "🔒" }}
+            </div>
+            <div class="achievement-details">
+                <h3>{{ achievement.name if achievement.unlocked else "???" }}</h3>
+                <p class="achievement-desc">
+                    {{ achievement.description if achievement.unlocked else "Complete more missions to unlock this achievement" }}
+                </p>
+                
+                {% if achievement.unlocked %}
+                <div class="historical-trivia">
+                    <h4>📚 {{ achievement.trivia_title }}</h4>
+                    <p>{{ achievement.trivia_fact }}</p>
+                    <div class="trivia-category-tag">{{ achievement.trivia_category }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Player Statistics -->
+    <div class="player-statistics">
+        <h2>📊 Combat Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Missions Completed</span>
+                <span class="stat-value">{{ player_stats.missions_completed or 0 }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Combat Victories</span>
+                <span class="stat-value">{{ player_stats.combat_victories or 0 }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Items Used</span>
+                <span class="stat-value">{{ player_stats.items_used or 0 }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total Score</span>
+                <span class="stat-value">{{ player_stats.total_score or 0 }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Deaths</span>
+                <span class="stat-value">{{ player_stats.deaths or 0 }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Classes Played</span>
+                <span class="stat-value">{{ player_stats.classes_used|length or 0 }}/4</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="achievements-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">🏠 Return to Main Menu</a>
+        <a href="{{ url_for('mission_menu') }}" class="btn btn-secondary">⚔️ Continue Fighting</a>
+    </div>
+</div>
+
+<style>
+.achievements-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.achievements-header {
+    text-align: center;
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    color: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.stats-summary {
+    margin-top: 15px;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.achievement-notifications {
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(241, 196, 15, 0.3);
+}
+
+.achievement-notification {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.achievement-notification .achievement-icon {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+}
+
+.trivia-unlock {
+    margin-top: 10px;
+    background: rgba(52, 73, 94, 0.1);
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #3498db;
+}
+
+.achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.achievement-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.achievement-card.unlocked {
+    border-color: #27ae60;
+    background: linear-gradient(135deg, #ffffff, #ecf0f1);
+}
+
+.achievement-card.locked {
+    opacity: 0.6;
+    border-color: #bdc3c7;
+}
+
+.achievement-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.achievement-icon {
+    font-size: 3rem;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.achievement-details h3 {
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 1.3rem;
+}
+
+.achievement-desc {
+    color: #7f8c8d;
+    margin-bottom: 15px;
+    font-size: 0.95rem;
+}
+
+.historical-trivia {
+    background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.historical-trivia h4 {
+    color: #2980b9;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+}
+
+.historical-trivia p {
+    color: #34495e;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.trivia-category-tag {
+    background: #3498db;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.trivia-category {
+    background: #2980b9;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+    margin-top: 8px;
+}
+
+.player-statistics {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    color: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+
+.player-statistics h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 12px 15px;
+    border-radius: 8px;
+}
+
+.stat-label {
+    font-weight: normal;
+    opacity: 0.9;
+}
+
+.stat-value {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #f39c12;
+}
+
+.achievements-actions {
+    text-align: center;
+    gap: 15px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .achievements-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .achievement-notification {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .achievements-actions {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

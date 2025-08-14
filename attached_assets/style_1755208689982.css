@@ -1,0 +1,842 @@
+/* WWII Text Adventure - Mobile-Optimized Styles */
+
+:root {
+    --color-primary: #2C5530;
+    --color-primary-light: #4A7C59;
+    --color-secondary: #8B4513;
+    --color-danger: #C5282F;
+    --color-warning: #F39C12;
+    --color-success: #27AE60;
+    --color-dark: #1C1C1C;
+    --color-dark-light: #2D2D2D;
+    --color-light: #ECF0F1;
+    --color-gray: #7F8C8D;
+    --color-border: #34495E;
+    
+    --font-size-small: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-large: 1.25rem;
+    --font-size-xl: 1.5rem;
+    
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    
+    --border-radius: 8px;
+    --border-radius-lg: 12px;
+    --border-radius-xl: 16px;
+    
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    color: var(--color-light);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    touch-action: manipulation;
+}
+
+.bg-dark {
+    background: linear-gradient(135deg, #1C1C1C 0%, #2D2D2D 50%, #1C1C1C 100%);
+    background-attachment: fixed;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-md);
+    min-height: 100vh;
+}
+
+/* Typography */
+.game-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--color-primary-light);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+    margin-bottom: var(--spacing-sm);
+}
+
+.subtitle {
+    font-size: var(--font-size-large);
+    color: var(--color-gray);
+    margin-bottom: var(--spacing-xl);
+}
+
+h1, h2, h3 {
+    color: var(--color-light);
+    margin-bottom: var(--spacing-md);
+}
+
+/* Cards */
+.card {
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-lg);
+    margin-bottom: var(--spacing-xl);
+    overflow: hidden;
+}
+
+.card-header {
+    background: var(--color-primary);
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.card-header h2 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.card-header p {
+    margin: var(--spacing-sm) 0 0;
+    opacity: 0.9;
+}
+
+/* Forms */
+.character-form,
+.mission-form,
+.choices-form {
+    padding: var(--spacing-lg);
+}
+
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+    color: var(--color-light);
+}
+
+.form-input,
+.form-select {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background: var(--color-dark);
+    color: var(--color-light);
+    font-size: var(--font-size-base);
+    transition: all 0.3s ease;
+}
+
+.form-input:focus,
+.form-select:focus {
+    outline: none;
+    border-color: var(--color-primary-light);
+    box-shadow: 0 0 0 3px rgba(76, 124, 89, 0.3);
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    touch-action: manipulation;
+    user-select: none;
+    min-height: 44px; /* iOS touch target */
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-light);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary {
+    background: var(--color-gray);
+    color: white;
+}
+
+.btn-warning {
+    background: var(--color-warning);
+    color: white;
+}
+
+.btn-success {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-large {
+    padding: var(--spacing-lg) var(--spacing-xl);
+    font-size: var(--font-size-large);
+    width: 100%;
+    justify-content: center;
+}
+
+.btn-small {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-small);
+}
+
+/* HUD */
+.hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow);
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.hud-left,
+.hud-right {
+    flex: 1;
+    min-width: 200px;
+}
+
+.player-info {
+    margin-bottom: var(--spacing-sm);
+}
+
+.player-info strong {
+    color: var(--color-primary-light);
+    font-size: var(--font-size-large);
+}
+
+.mission-info {
+    color: var(--color-warning);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Progress Bars */
+.health-bar {
+    margin-bottom: var(--spacing-md);
+}
+
+.health-bar label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+}
+
+.progress-bar {
+    position: relative;
+    background: var(--color-dark);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    height: 24px;
+    overflow: hidden;
+}
+
+.progress-bar.large {
+    height: 32px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.progress-fill.health-good {
+    background: var(--color-success);
+}
+
+.progress-fill.health-warning {
+    background: var(--color-warning);
+}
+
+.progress-fill.health-danger {
+    background: var(--color-danger);
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: var(--font-size-small);
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+    z-index: 1;
+}
+
+/* Resources */
+.resources {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.resource {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    background: var(--color-dark);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+    font-weight: 500;
+}
+
+/* Story Display */
+.story-card {
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-xl);
+    margin-bottom: var(--spacing-xl);
+    box-shadow: var(--shadow);
+}
+
+.story-content {
+    padding: var(--spacing-xl);
+    line-height: 1.8;
+    font-size: var(--font-size-base);
+    max-height: 60vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+/* Choices */
+.choices-container {
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.choices-container h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    color: var(--color-primary-light);
+}
+
+.choice-btn {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    background: var(--color-dark);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    color: var(--color-light);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 60px;
+    touch-action: manipulation;
+}
+
+.choice-btn:hover {
+    border-color: var(--color-primary-light);
+    background: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.choice-btn:active {
+    transform: translateY(0);
+}
+
+.choice-number {
+    background: var(--color-primary);
+    color: white;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+.choice-text {
+    flex: 1;
+    text-align: left;
+    line-height: 1.4;
+}
+
+.choice-btn i {
+    margin-left: auto;
+    opacity: 0.7;
+}
+
+/* Missions */
+.missions-grid {
+    display: grid;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.mission-card {
+    position: relative;
+}
+
+.mission-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.mission-label {
+    display: block;
+    background: var(--color-dark);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 120px;
+}
+
+.mission-radio:checked + .mission-label {
+    border-color: var(--color-primary-light);
+    background: var(--color-primary);
+    box-shadow: var(--shadow-lg);
+}
+
+.mission-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-md);
+    gap: var(--spacing-md);
+}
+
+.mission-header h3 {
+    margin: 0;
+    color: var(--color-light);
+    flex: 1;
+}
+
+.difficulty {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-small);
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+.difficulty-easy {
+    background: var(--color-success);
+    color: white;
+}
+
+.difficulty-medium {
+    background: var(--color-warning);
+    color: white;
+}
+
+.difficulty-hard {
+    background: var(--color-danger);
+    color: white;
+}
+
+.mission-desc {
+    color: var(--color-gray);
+    margin-bottom: var(--spacing-md);
+    line-height: 1.5;
+}
+
+.mission-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.reward {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--color-warning);
+    font-weight: 500;
+}
+
+/* Stats and Base */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card {
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.stat-icon {
+    font-size: 2rem;
+    color: var(--color-primary-light);
+}
+
+.stat-info h3 {
+    font-size: 2rem;
+    margin: 0;
+    color: var(--color-light);
+}
+
+.stat-info p {
+    margin: 0;
+    color: var(--color-gray);
+    font-size: var(--font-size-small);
+}
+
+.soldier-status {
+    padding: var(--spacing-lg);
+}
+
+.soldier-info {
+    margin-bottom: var(--spacing-lg);
+}
+
+.soldier-info h3 {
+    color: var(--color-primary-light);
+    margin-bottom: var(--spacing-sm);
+}
+
+.soldier-class {
+    color: var(--color-gray);
+}
+
+.completed-missions {
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.mission-badge {
+    background: var(--color-success);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-small);
+    font-weight: 500;
+}
+
+/* Quick Actions */
+.quick-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-xl);
+}
+
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.action-buttons {
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+/* Achievements */
+.achievements {
+    margin-top: var(--spacing-xl);
+}
+
+.achievements h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--color-warning);
+    margin-bottom: var(--spacing-lg);
+}
+
+.achievement-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.achievement {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    background: var(--color-dark);
+    border: 1px solid var(--color-border);
+}
+
+.achievement.unlocked {
+    border-color: var(--color-warning);
+    background: rgba(243, 156, 18, 0.1);
+}
+
+.achievement i {
+    color: var(--color-warning);
+    font-size: var(--font-size-large);
+}
+
+/* Notifications */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--color-success);
+    color: white;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.hidden {
+    transform: translateX(100%);
+}
+
+/* Game Info */
+.game-info,
+.tactical-info {
+    background: var(--color-dark-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    margin-top: var(--spacing-xl);
+}
+
+.game-info h3,
+.tactical-info h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--color-primary-light);
+    margin-bottom: var(--spacing-md);
+}
+
+.game-info ul,
+.tactical-info ul {
+    list-style: none;
+    padding: 0;
+}
+
+.game-info li,
+.tactical-info li {
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: flex-start;
+}
+
+.game-info li:last-child,
+.tactical-info li:last-child {
+    border-bottom: none;
+}
+
+.game-info li::before,
+.tactical-info li::before {
+    content: "•";
+    color: var(--color-primary-light);
+    font-weight: bold;
+    margin-right: var(--spacing-sm);
+    margin-top: 0.1em;
+}
+
+/* Player Tags */
+.player-tag {
+    background: var(--color-primary);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-small);
+    font-weight: 500;
+}
+
+.score {
+    background: var(--color-warning);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-small);
+    font-weight: 500;
+    margin-left: var(--spacing-md);
+}
+
+.player-info {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: var(--spacing-sm);
+    }
+    
+    .game-title {
+        font-size: 2rem;
+    }
+    
+    .hud {
+        flex-direction: column;
+    }
+    
+    .hud-left,
+    .hud-right {
+        width: 100%;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-actions {
+        flex-direction: column;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .choice-btn {
+        min-height: 50px;
+    }
+    
+    .mission-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .game-title {
+        font-size: 1.75rem;
+    }
+    
+    .story-content {
+        padding: var(--spacing-md);
+        font-size: var(--font-size-small);
+    }
+    
+    .choice-btn {
+        padding: var(--spacing-md);
+        min-height: 44px;
+    }
+    
+    .choice-number {
+        width: 28px;
+        height: 28px;
+        font-size: var(--font-size-small);
+    }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.loading .btn {
+    position: relative;
+}
+
+.loading .btn::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    right: var(--spacing-md);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+@keyframes spin {
+    0% { transform: translateY(-50%) rotate(0deg); }
+    100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Focus improvements for accessibility */
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid var(--color-primary-light);
+    outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Selection styles */
+::selection {
+    background: var(--color-primary-light);
+    color: white;
+}
