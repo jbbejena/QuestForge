@@ -88,6 +88,18 @@ function typeWriterEffect(element, callback) {
     typeCharacter();
 }
 
+// Choice confirmation system
+function confirmChoice(choiceNumber, choiceText) {
+    // Show confirmation dialog
+    const confirmed = confirm(`Confirm your choice:\n\n${choiceNumber}. ${choiceText}\n\nProceed with this action?`);
+    
+    if (confirmed) {
+        // Set the hidden input and submit the form
+        document.getElementById('selectedChoice').value = choiceNumber;
+        document.getElementById('choiceForm').submit();
+    }
+}
+
 // Enhanced game actions
 function initializeGameActions() {
     // Add keyboard shortcuts

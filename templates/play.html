@@ -130,12 +130,12 @@
         <div class="choices-container">
             <h3><i class="fas fa-chess-pawn"></i> Choose Your Action</h3>
             
-            <form method="post" action="{{ url_for('make_choice') }}" class="choices-form">
+            <form method="post" action="{{ url_for('make_choice') }}" class="choices-form" id="choiceForm">
+                <input type="hidden" name="choice" id="selectedChoice" value="1">
                 {% for choice in choices %}
-                <button type="submit" 
-                        name="choice" 
-                        value="{{ loop.index }}" 
+                <button type="button" 
                         class="choice-btn choice-{{ loop.index }}"
+                        onclick="confirmChoice({{ loop.index }}, '{{ choice|replace("'", "\\'") }}')"
 >
                     <span class="choice-number">{{ loop.index }}</span>
                     <span class="choice-text">{{ choice }}</span>
