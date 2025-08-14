@@ -34,7 +34,7 @@ function initializeProgressiveStory() {
     }
 }
 
-// Enhanced typewriter effect for progressive content
+// Enhanced typewriter effect with auto-scroll
 function typeWriterEffect(element, callback) {
     if (!element) return;
     
@@ -46,7 +46,8 @@ function typeWriterEffect(element, callback) {
     element.style.display = 'block';
     
     let i = 0;
-    const speed = 20; // Faster typing for better UX
+    const speed = 15; // Slightly faster for better UX
+    let lastScrollTime = 0;
     
     function typeCharacter() {
         if (i < textContent.length) {
@@ -56,11 +57,30 @@ function typeWriterEffect(element, callback) {
             } else {
                 element.innerHTML += textContent.charAt(i);
             }
+            
+            // Auto-scroll every few characters to keep text visible
+            const now = Date.now();
+            if (now - lastScrollTime > 100) { // More frequent scrolling for better UX
+                // Scroll to bottom of viewport to show new text
+                const elementRect = element.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                
+                // Only scroll if element is near or below viewport
+                if (elementRect.bottom > windowHeight - 100) {
+                    window.scrollTo({
+                        top: window.scrollY + (elementRect.bottom - windowHeight + 100),
+                        behavior: 'smooth'
+                    });
+                }
+                lastScrollTime = now;
+            }
+            
             i++;
             setTimeout(typeCharacter, speed);
         } else {
-            // Restore original HTML formatting
+            // Final scroll and restore original HTML formatting
             element.innerHTML = originalHTML;
+            element.scrollIntoView({ behavior: 'smooth', block: 'end' });
             if (callback) callback();
         }
     }

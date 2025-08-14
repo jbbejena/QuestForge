@@ -475,30 +475,38 @@ def make_choice():
             phase_instruction = "Move toward mission completion. Provide opportunities to complete the objective or create final dramatic moments."
         
         system_msg = (
-            f"Continue this WWII text adventure story. You are turn {turn_count} of this mission. "
-            f"Phase: {mission_phase}. {phase_instruction} "
-            "IMPORTANT: Build directly on the player's choice - show immediate consequences and reactions. "
-            "Always end with exactly 3 numbered tactical choices (format: 1. [action]). "
-            "Make each choice feel distinct and meaningful. "
-            "Keep responses focused and engaging (1-2 paragraphs plus choices). "
-            "If the mission should end, include completion keywords like 'mission complete' or 'objective secured'."
+            f"You are a WWII text adventure narrator maintaining strict story continuity. "
+            f"CRITICAL: Continue the EXACT existing storyline - NEVER restart or reset the scenario. "
+            f"This is turn {turn_count} of an ongoing mission in progress. "
+            f"Mission phase: {mission_phase}. {phase_instruction} "
+            f"Build directly upon the player's previous choice with immediate consequences. "
+            f"End with exactly 3 numbered tactical choices advancing THIS storyline. "
+            f"Format: 1. [action] 2. [action] 3. [action]"
         )
         
-        # Get recent story context for better continuity
+        # Build comprehensive story context to prevent AI confusion
         story_history = session.get("story_history", [])
-        recent_context = ""
-        if len(story_history) > 0:
-            recent_context = f"Previous context: {story_history[-1].get('content', '')[:200]}...\n\n"
+        full_story_context = session.get("full_story", base_story)
+        
+        # Create detailed context from all previous turns
+        context_summary = ""
+        if len(story_history) > 1:
+            for i, turn in enumerate(story_history[-3:]):  # Last 3 turns for context
+                if turn.get("choice"):
+                    context_summary += f"Turn {turn.get('turn', i)}: Chose '{turn['choice']}' -> {turn.get('content', '')[:150]}...\n"
         
         user_prompt = (
+            f"ONGOING MISSION CONTEXT:\n"
             f"Mission: {mission.get('name')} - {mission.get('desc')}\n"
-            f"Turn {turn_count} | Phase: {mission_phase}\n"
             f"Player: {player.get('name')} ({player.get('rank')} {player.get('class')})\n"
-            f"Health: {player.get('health', 100)}/100 | "
-            f"Ammo: {resources.get('ammo', 0)} | Medkits: {resources.get('medkit', 0)} | Grenades: {resources.get('grenade', 0)}\n\n"
-            f"{recent_context}"
-            f"Player's choice: {chosen_action}\n\n"
-            "Continue the story showing the consequences of this choice and provide 3 new tactical options."
+            f"Current Status: Health {player.get('health', 100)}/100, "
+            f"Ammo: {resources.get('ammo', 0)}, Medkits: {resources.get('medkit', 0)}, Grenades: {resources.get('grenade', 0)}\n"
+            f"Turn: {turn_count}, Phase: {mission_phase}\n\n"
+            f"RECENT STORY PROGRESSION:\n{context_summary}\n"
+            f"CURRENT SITUATION:\n{full_story_context[-800:]}\n\n"
+            f"PLAYER'S LATEST CHOICE: {chosen_action}\n\n"
+            f"Continue from where the story left off. Show immediate consequences of this choice. "
+            f"Do NOT create new scenarios or restart the mission. Build upon the existing narrative."
         )
         
         new_content = ai_chat(system_msg, user_prompt)
@@ -522,6 +530,10 @@ def make_choice():
         
         # Update main story for next iteration
         session["story"] = session["full_story"]
+        
+        # Optimize session size by truncating very old story history
+        if len(story_history) > 10:
+            session["story_history"] = story_history[-8:]  # Keep last 8 turns
         
         # Check for combat and update stats
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
