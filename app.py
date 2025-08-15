@@ -5,6 +5,7 @@ import logging
 import sys
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from dotenv import load_dotenv
+from database import db
 from achievements import (
     check_achievements, get_achievement_display, initialize_player_stats, 
     update_player_stats, ACHIEVEMENTS
@@ -374,6 +375,9 @@ def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) ->
 @app.route("/")
 def index():
     """Character creation and game start page."""
+    # Load existing data from database
+    load_from_database()
+    
     # Initialize player stats if not present
     if "player_stats" not in session:
         session["player_stats"] = initialize_player_stats()
@@ -750,15 +754,9 @@ def make_choice():
         # Progressive story system: separate new content from base story
         choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
         
-        # Update story history for context
-        story_history = session.get("story_history", [])
-        story_history.append({
-            "turn": turn_count,
-            "choice": chosen_action,
-            "content": new_content,
-            "type": "continuation"
-        })
-        session["story_history"] = story_history
+        # Save story turn to database instead of session
+        session_id = get_session_id()
+        db.save_story_turn(session_id, turn_count, chosen_action, new_content)
         
         # Progressive story system: only show new content typing
         session["new_content"] = choice_result
@@ -1161,22 +1159,70 @@ def quick_load():
     return jsonify({"success": False, "message": "No saved game found."})
 
 @app.route("/reset")
+def get_session_id():
+    """Get or create a unique session identifier."""
+    if 'game_session_id' not in session:
+        import uuid
+        session['game_session_id'] = str(uuid.uuid4())
+        session.permanent = True
+    return session['game_session_id']
+
+def save_to_database():
+    """Save current session data to database."""
+    session_id = get_session_id()
+    
+    # Save player data
+    player_data = session.get("player", {})
+    resources = session.get("resources", {})
+    if player_data:
+        db.save_player_data(session_id, player_data, resources)
+    
+    # Save game session
+    mission_data = session.get("mission", {})
+    story_data = {
+        "story": session.get("story", ""),
+        "base_story": session.get("base_story", ""),
+        "new_content": session.get("new_content", ""),
+        "mission_phase": session.get("mission_phase", "start")
+    }
+    turn_count = session.get("turn_count", 0)
+    score = session.get("score", 0)
+    completed_missions = session.get("completed", [])
+    player_stats = session.get("player_stats", {})
+    
+    db.save_game_session(session_id, mission_data, story_data, 
+                        turn_count, score, completed_missions, player_stats)
+
+def load_from_database():
+    """Load session data from database."""
+    session_id = get_session_id()
+    
+    # Load player data
+    player_data = db.load_player_data(session_id)
+    if player_data:
+        session["player"], session["resources"] = player_data
+    
+    # Load game session
+    game_data = db.load_game_session(session_id)
+    if game_data:
+        if game_data['mission_data']:
+            session["mission"] = game_data['mission_data']
+        session.update(game_data['story_data'])
+        session["turn_count"] = game_data['turn_count']
+        session["score"] = game_data['score']
+        session["completed"] = game_data['completed_missions']
+        session["player_stats"] = game_data['player_stats']
+
 def cleanup_session():
     """Clean up session data to prevent cookie overflow."""
-    # Remove or compress large session data
-    if "story_history" in session:
-        if len(session["story_history"]) > 3:
-            session["story_history"] = session["story_history"][-3:]
+    # Now we only keep minimal data in session, rest in database
+    save_to_database()
     
-    # Compress base story if too large
-    base_story = session.get("base_story", "")
-    if len(base_story) > 1500:
-        lines = base_story.split('\n')
-        session["base_story"] = '\n'.join(lines[:8] + ["...[mission summary]..."] + lines[-10:])
-    
-    # Remove temporary data
-    session.pop("debrief_data", None)
-    session.pop("quick_save", None)
+    # Keep only essential session data
+    essential_keys = ['game_session_id', 'player', 'resources', 'mission', 'story']
+    session_copy = {k: v for k, v in session.items() if k in essential_keys}
+    session.clear()
+    session.update(session_copy)
 
 @app.route("/reset")
 def reset():
