@@ -674,10 +674,6 @@ def make_choice():
         if any(keyword in chosen_action.lower() for keyword in completion_keywords):
             return complete_mission(story)
         
-        # Check for success indicators in AI response
-        if any(keyword in new_content.lower() for keyword in success_keywords):
-            return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
-        
         # Auto-complete after 6 turns to prevent infinite games
         if turn_count >= 6:
             mission_name = mission.get("name", "").lower()
@@ -749,6 +745,10 @@ def make_choice():
         
         new_content = ai_chat(system_msg, user_prompt)
         logging.info(f"Generated content: {new_content[:200]}...")
+        
+        # Check for success indicators in AI response after generation
+        if any(keyword in new_content.lower() for keyword in success_keywords):
+            return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
         
         # Parse choices from the new content immediately
         fresh_choices = parse_choices(new_content)
