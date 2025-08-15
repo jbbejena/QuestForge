@@ -768,6 +768,7 @@ def make_choice():
         session["story"] = new_full_story
         
         # Critical optimization: aggressive session size management
+        story_history = session.get("story_history", [])
         if len(story_history) > 4:
             session["story_history"] = story_history[-3:]  # Keep only last 3 turns
             
