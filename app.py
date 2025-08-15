@@ -2,11 +2,12 @@ import os
 import random
 import re
 import logging
+import sys
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from dotenv import load_dotenv
 from achievements import (
     check_achievements, get_achievement_display, initialize_player_stats, 
-    update_player_stats, ACHIEVEMENTS, HISTORICAL_TRIVIA
+    update_player_stats, ACHIEVEMENTS
 )
 
 # Configure logging for better debugging
@@ -368,29 +369,7 @@ def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) ->
         "description": random.choice(descriptions)
     }
         
-    # Resource management events
-    if turn_count > 2 and random.random() < 0.25:
-        resource_events = [
-            "You find enemy ammunition supplies.",
-            "A wounded enemy drops medical supplies.",
-            "You discover abandoned equipment."
-        ]
-        if random.random() < 0.5:
-            resource_type = random.choice(["ammo", "medkit", "grenade"])
-            amount = random.randint(1, 3)
-            resources[resource_type] = resources.get(resource_type, 0) + amount
-            events.append(f"Found {amount} {resource_type}{'s' if amount > 1 else ''}!")
     
-    # Squad events (late in mission)
-    if turn_count > 3 and random.random() < 0.2:
-        squad_events = [
-            "One of your squad members spots enemy movement.",
-            "Your squad provides covering fire.",
-            "A squad member reports radio chatter."
-        ]
-        events.append(random.choice(squad_events))
-    
-    return " ".join(events) if events else ""
 
 @app.route("/")
 def index():
@@ -551,6 +530,9 @@ def start_mission():
     session["story_history"] = []
     session["mission_phase"] = "start"  # start, middle, climax, end
     
+    # Clean up session before starting new mission
+    cleanup_session()
+    
     # Mission briefing reward
     resources = session.get("resources", {})
     resources["ammo"] = resources.get("ammo", 0) + 3
@@ -621,7 +603,11 @@ def play():
 def make_choice():
     """Process player's choice and continue story."""
     try:
-        choice_index = int(request.form.get("choice", "1")) - 1
+        # Input validation and sanitization
+        choice_input = request.form.get("choice", "1").strip()
+        if not choice_input.isdigit():
+            choice_input = "1"
+        choice_index = max(0, min(2, int(choice_input) - 1))  # Clamp to valid range
         
         # Get current story and parse fresh choices
         current_story = session.get("story", "")
@@ -781,16 +767,21 @@ def make_choice():
         new_full_story = base_story + choice_result
         session["story"] = new_full_story
         
-        # Critical optimization: limit story history to prevent session bloat
-        if len(story_history) > 6:
-            session["story_history"] = story_history[-4:]  # Keep only last 4 turns
+        # Critical optimization: aggressive session size management
+        if len(story_history) > 4:
+            session["story_history"] = story_history[-3:]  # Keep only last 3 turns
             
-        # Also limit the base story size to prevent exponential growth
-        if len(base_story) > 3000:  # About 3KB limit
-            # Keep only the mission start and recent content
+        # Aggressive story size limits to prevent cookie overflow
+        if len(base_story) > 2000:  # Stricter 2KB limit
             story_lines = base_story.split('\n')
-            if len(story_lines) > 50:
-                session["base_story"] = '\n'.join(story_lines[:20] + story_lines[-20:])  # Keep start and recent
+            if len(story_lines) > 30:
+                # Keep mission intro and recent content only
+                session["base_story"] = '\n'.join(story_lines[:10] + ["...[mission continues]..."] + story_lines[-15:])
+        
+        # Limit new_content size as well
+        if len(choice_result) > 1500:
+            choice_result = choice_result[:1500] + "...[continuing]"
+            session["new_content"] = choice_result
         
         # Enhanced combat system
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
@@ -806,16 +797,36 @@ def make_choice():
             player["health"] = max(0, player.get("health", 100) - combat_result.get("damage", 0))
             resources["ammo"] = max(0, resources.get("ammo", 0) - combat_result.get("ammo_used", 1))
         
-        # Auto-save game state
+        # Auto-save game state with size monitoring
         session["player"] = player
         session["resources"] = resources
         session.permanent = True
+        
+        # Monitor and clean up session size
+        try:
+            import sys
+            session_size = sys.getsizeof(str(session))
+            if session_size > 3500:  # Approaching cookie limit
+                logging.warning(f"Session size approaching limit: {session_size} bytes")
+                # Emergency cleanup of oldest non-essential data
+                if "story_history" in session and len(session["story_history"]) > 2:
+                    session["story_history"] = session["story_history"][-2:]
+        except Exception as e:
+            logging.error(f"Session size check failed: {e}")
         
         return redirect(url_for("play"))
         
     except Exception as e:
         logging.error(f"Error in make_choice: {e}")
-        return render_template("error.html", error=str(e))
+        # Try to recover gracefully
+        try:
+            # Reset to a safe state
+            session["story"] = session.get("base_story", "Mission continues...")
+            session["new_content"] = "The situation develops rapidly. You must make a tactical decision."
+            return redirect(url_for("play"))
+        except:
+            # Last resort - return to mission menu
+            return redirect(url_for("mission_menu"))
 
 def complete_mission(story):
     """Handle enhanced mission completion with dynamic outcomes."""
@@ -1148,6 +1159,24 @@ def quick_load():
         })
     
     return jsonify({"success": False, "message": "No saved game found."})
+
+@app.route("/reset")
+def cleanup_session():
+    """Clean up session data to prevent cookie overflow."""
+    # Remove or compress large session data
+    if "story_history" in session:
+        if len(session["story_history"]) > 3:
+            session["story_history"] = session["story_history"][-3:]
+    
+    # Compress base story if too large
+    base_story = session.get("base_story", "")
+    if len(base_story) > 1500:
+        lines = base_story.split('\n')
+        session["base_story"] = '\n'.join(lines[:8] + ["...[mission summary]..."] + lines[-10:])
+    
+    # Remove temporary data
+    session.pop("debrief_data", None)
+    session.pop("quick_save", None)
 
 @app.route("/reset")
 def reset():
