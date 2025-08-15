@@ -560,6 +560,7 @@ def make_choice():
         # Debug: Check what choices are parsed from the updated story
         parsed_choices = parse_choices(new_full_story)
         print(f"DEBUG: Parsed choices from updated story: {parsed_choices}")
+        print(f"DEBUG: Choice parsing from new content: {parse_choices(new_content)}")
         print(f"DEBUG: Last 500 chars of story: {new_full_story[-500:]}")
         
         # Critical optimization: limit story history to prevent session bloat
