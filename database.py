@@ -156,6 +156,34 @@ class GameDatabase:
         conn.commit()
         conn.close()
     
+    def get_story_context(self, session_id: str, limit: int = 3) -> str:
+        """Get condensed story context for AI prompting."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT choice_made, story_content 
+            FROM story_history 
+            WHERE session_id = ? 
+            ORDER BY turn_number DESC 
+            LIMIT ?
+        ''', (session_id, limit))
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        if not results:
+            return ""
+        
+        # Create narrative context summary
+        context_parts = []
+        for choice, content in reversed(results):  # Reverse to chronological order
+            # Extract key plot points from content
+            content_summary = content[:200].replace('\n', ' ')
+            context_parts.append(f"Action: {choice} -> {content_summary}")
+        
+        return " | ".join(context_parts)
+    
     def get_story_history(self, session_id: str, limit: int = 5) -> list:
         """Get recent story history."""
         conn = sqlite3.connect(self.db_path)

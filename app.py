@@ -62,6 +62,88 @@ SURPRISE_COMBAT_KEYWORDS = [
     "enemy spotted", "take cover", "incoming fire", "gunshots ring out"
 ]
 
+def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
+    """Create an intelligent summary that preserves key plot points."""
+    if len(full_story) < 800:
+        return full_story
+    
+    # Extract key elements to preserve
+    key_phrases = []
+    story_lower = full_story.lower()
+    
+    # Mission-specific key elements
+    mission_name = mission.get("name", "").lower()
+    if "sabotage" in mission_name:
+        key_phrases.extend(["bridge", "explosives", "charges", "demolition", "target"])
+    elif "rescue" in mission_name:
+        key_phrases.extend(["prisoners", "pows", "rescue", "extraction", "captives"])
+    elif "intel" in mission_name:
+        key_phrases.extend(["documents", "intelligence", "classified", "information", "files"])
+    
+    # Character and tactical elements
+    key_phrases.extend([
+        player.get("name", "").lower(),
+        player.get("class", "").lower(),
+        "squad", "enemy", "objective", "mission"
+    ])
+    
+    # Split story into sentences and score by relevance
+    sentences = full_story.split('. ')
+    scored_sentences = []
+    
+    for sentence in sentences:
+        score = 0
+        sentence_lower = sentence.lower()
+        
+        # Score based on key phrases
+        for phrase in key_phrases:
+            if phrase and phrase in sentence_lower:
+                score += 1
+        
+        # Boost sentences with tactical/action content
+        if any(word in sentence_lower for word in ["attack", "advance", "enemy", "fire", "combat"]):
+            score += 1
+        
+        # Boost recent choices (sentences containing "chose" or numbers)
+        if "chose" in sentence_lower or any(str(i) in sentence for i in range(1, 4)):
+            score += 2
+        
+        scored_sentences.append((score, sentence))
+    
+    # Keep highest scoring sentences plus ensure narrative flow
+    scored_sentences.sort(key=lambda x: x[0], reverse=True)
+    
+    # Take top sentences but ensure we have intro and recent content
+    summary_sentences = []
+    
+    # Always keep first 2 sentences (mission setup)
+    if len(sentences) > 2:
+        summary_sentences.extend(sentences[:2])
+    
+    # Add highest scoring middle content
+    middle_sentences = [s[1] for s in scored_sentences if s[0] > 0][:3]
+    summary_sentences.extend(middle_sentences)
+    
+    # Always keep last 3 sentences (current situation)
+    if len(sentences) > 3:
+        summary_sentences.extend(sentences[-3:])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    final_sentences = []
+    for sentence in summary_sentences:
+        if sentence not in seen:
+            seen.add(sentence)
+            final_sentences.append(sentence)
+    
+    summary = '. '.join(final_sentences)
+    
+    # Add bridging text to maintain flow
+    if len(final_sentences) > 5:
+        summary += "\n\n[Mission continues with tactical precision...]"
+    
+    return summary
+
 def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tokens: int = 700) -> str:
     """
     Call OpenAI API to generate story content.
@@ -706,6 +788,29 @@ def make_choice():
         mission_phase = session.get("mission_phase", "middle")
         mission = session.get("mission", {})
         
+        # Build narrative context from story history
+        story_context = ""
+        story_history = session.get("story_history", [])
+        if len(story_history) > 1:
+            # Get key plot points from recent history
+            recent_choices = []
+            for entry in story_history[-3:]:  # Last 3 turns
+                if entry.get("choice") and entry.get("type") != "compressed":
+                    recent_choices.append(entry["choice"][:80])  # Truncate for brevity
+            
+            if recent_choices:
+                story_context = f"Recent actions: {' -> '.join(recent_choices)}. "
+        
+        # Extract mission objectives for continuity
+        mission_objectives = ""
+        mission_name = mission.get('name', '').lower()
+        if "sabotage" in mission_name:
+            mission_objectives = "Objective: Destroy the target structure. "
+        elif "rescue" in mission_name:
+            mission_objectives = "Objective: Extract prisoners safely. "
+        elif "intel" in mission_name:
+            mission_objectives = "Objective: Secure classified documents. "
+        
         # Dynamic system message based on mission phase
         if mission_phase == "middle":
             phase_instruction = "Develop the mission further. Introduce challenges, obstacles, or tactical situations that test the player's decisions."
@@ -716,16 +821,18 @@ def make_choice():
         
         system_msg = (
             f"You are a WWII text adventure narrator. Continue the story based on the player's choice. "
+            f"CONTEXT: {story_context}{mission_objectives}"
             f"REQUIREMENTS: "
             f"1. Show immediate consequences of the player's choice: {chosen_action} "
             f"2. This is turn {turn_count} of mission: {mission.get('name')} "
             f"3. {phase_instruction} "
-            f"4. ALWAYS end with exactly 3 numbered tactical choices like this: "
+            f"4. Maintain narrative continuity with previous actions. "
+            f"5. ALWAYS end with exactly 3 numbered tactical choices like this: "
             f"1. [specific action] "
             f"2. [different action] "
             f"3. [alternative action] "
-            f"5. Keep choices concrete and tactical, not vague. "
-            f"6. Write 2-3 paragraphs then provide the 3 choices."
+            f"6. Keep choices concrete and tactical, not vague. "
+            f"7. Write 2-3 paragraphs then provide the 3 choices."
         )
         
         user_prompt = (
@@ -765,24 +872,52 @@ def make_choice():
         
         # Update the full story for next iteration - this is critical for choice parsing
         new_full_story = base_story + choice_result
-        session["story"] = new_full_story
         
-        # Critical optimization: aggressive session size management
-        story_history = session.get("story_history", [])
-        if len(story_history) > 4:
-            session["story_history"] = story_history[-3:]  # Keep only last 3 turns
+        # Intelligent story management instead of aggressive truncation
+        if len(new_full_story) > 3000:  # Higher limit before summarization
+            # Create intelligent summary that preserves plot
+            mission = session.get("mission", {})
+            player = session.get("player", {})
+            summarized_story = create_story_summary(new_full_story, mission, player)
             
-        # Aggressive story size limits to prevent cookie overflow
-        if len(base_story) > 2000:  # Stricter 2KB limit
-            story_lines = base_story.split('\n')
-            if len(story_lines) > 30:
-                # Keep mission intro and recent content only
-                session["base_story"] = '\n'.join(story_lines[:10] + ["...[mission continues]..."] + story_lines[-15:])
+            # Keep the summary as base story, current choice as new content
+            session["base_story"] = summarized_story
+            session["story"] = summarized_story + choice_result
+            
+            # Log summarization for debugging
+            logging.info(f"Story summarized from {len(new_full_story)} to {len(summarized_story)} chars")
+        else:
+            session["story"] = new_full_story
         
-        # Limit new_content size as well
-        if len(choice_result) > 1500:
-            choice_result = choice_result[:1500] + "...[continuing]"
-            session["new_content"] = choice_result
+        # Enhanced story history with key plot points
+        story_history = session.get("story_history", [])
+        story_entry = {
+            "turn": turn_count,
+            "choice": chosen_action,
+            "content": new_content[:500],  # Store more content for context
+            "type": "continuation",
+            "mission_phase": session.get("mission_phase", "middle")
+        }
+        story_history.append(story_entry)
+        
+        # Keep more history but compress older entries
+        if len(story_history) > 6:
+            # Compress older entries to just key info
+            compressed_history = []
+            for i, entry in enumerate(story_history):
+                if i < len(story_history) - 4:  # Compress all but last 4
+                    compressed_entry = {
+                        "turn": entry["turn"],
+                        "choice": entry["choice"][:100],  # Keep choice summary
+                        "content": "...",  # Remove content
+                        "type": "compressed"
+                    }
+                    compressed_history.append(compressed_entry)
+                else:
+                    compressed_history.append(entry)
+            session["story_history"] = compressed_history
+        else:
+            session["story_history"] = story_history
         
         # Enhanced combat system
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
