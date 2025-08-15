@@ -277,6 +277,41 @@ def generate_dynamic_consequences(chosen_action: str, player: dict, resources: d
     elif any(word in action_lower for word in ["help", "treat", "medical", "wounded", "injured"]):
         if player_class == "Medic" and random.random() < 0.4:
             events.append("Your medical expertise saves valuable time and lives.")
+    
+    # Squad casualty system
+    squad = session.get("squad", [])
+    if squad and random.random() < 0.15:  # 15% chance of squad event
+        if any(word in action_lower for word in ["charge", "assault", "attack"]) and random.random() < 0.3:
+            # Higher risk actions can lead to casualties
+            casualty = random.choice(squad)
+            events.append(f"CASUALTY: {casualty} is wounded and evacuated!")
+            squad.remove(casualty)
+            session["squad"] = squad
+            session["squad_casualties"] = session.get("squad_casualties", []) + [casualty]
+        else:
+            # Positive squad events
+            squad_member = random.choice(squad)
+            squad_events = [
+                f"{squad_member} provides excellent covering fire!",
+                f"{squad_member} spots enemy movement ahead.",
+                f"{squad_member} secures the flank position."
+            ]
+            events.append(random.choice(squad_events))
+    
+    # Resource management events
+    if turn_count > 2 and random.random() < 0.25:
+        resource_events = [
+            "You find enemy ammunition supplies.",
+            "A wounded enemy drops medical supplies.", 
+            "You discover abandoned equipment."
+        ]
+        if random.random() < 0.5:
+            resource_type = random.choice(["ammo", "medkit", "grenade"])
+            amount = random.randint(1, 3)
+            resources[resource_type] = resources.get(resource_type, 0) + amount
+            events.append(f"Found {amount} {resource_type}{'s' if amount > 1 else ''}!")
+    
+    return " ".join(events) if events else ""
 
 def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) -> dict:
     """Resolve combat encounters with detailed outcomes."""
@@ -332,9 +367,6 @@ def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) ->
         "ammo_used": modifier["ammo_cost"],
         "description": random.choice(descriptions)
     }
-
-
-            player["morale"] = min(100, player.get("morale", 100) + 15)
         
     # Resource management events
     if turn_count > 2 and random.random() < 0.25:
@@ -430,14 +462,41 @@ def create_character():
     
     session["resources"] = base_resources
     
-    # Generate dynamic squad with varied specializations
-    squad_members = [
+    # Generate dynamic squad with varied specializations 
+    # Check if we have wounded from previous missions
+    wounded_members = session.get("squad_casualties", [])
+    
+    all_squad_members = [
         "Thompson (Rifleman)", "Garcia (Medic)", "Kowalski (Gunner)",
-        "Anderson (Sniper)", "Martinez (Demo)", "Chen (Scout)",
-        "O'Brien (Engineer)", "Williams (Radio)", "Jackson (Veteran)"
+        "Anderson (Sniper)", "Martinez (Demo)", "Chen (Scout)", 
+        "O'Brien (Engineer)", "Williams (Radio)", "Jackson (Veteran)",
+        "Murphy (Corpsman)", "Rodriguez (Assault)", "Singh (Marksman)"
     ]
-    squad_size = random.randint(3, 5)
-    session["squad"] = random.sample(squad_members, squad_size)
+    
+    # Remove wounded members from available pool
+    available_members = [m for m in all_squad_members if m not in wounded_members]
+    
+    # If we have existing squad, keep survivors and add replacements
+    existing_squad = session.get("squad", [])
+    if existing_squad:
+        # Keep existing survivors
+        survivors = [m for m in existing_squad if m not in wounded_members]
+        needed = max(3, 5 - len(survivors))  # Ensure minimum squad size
+        
+        # Add replacements for wounded
+        replacements = [m for m in available_members if m not in survivors]
+        if replacements:
+            new_recruits = random.sample(replacements, min(needed, len(replacements)))
+            session["squad"] = survivors + new_recruits
+        else:
+            session["squad"] = survivors
+    else:
+        # First mission - create new squad
+        squad_size = random.randint(3, 5)
+        session["squad"] = random.sample(available_members, min(squad_size, len(available_members)))
+    
+    # Clear casualties after new character creation (they've recovered/been replaced)
+    session["squad_casualties"] = []
     
     # Game progress tracking
     session["completed"] = []
@@ -773,7 +832,7 @@ def complete_mission(story):
     
     # Award score based on performance factors
     base_score = difficulty_mod["reward"]
-    health_bonus = player.get("health", 0)
+    health_bonus = max(0, player.get("health", 0) - 50)
     stealth_bonus = mission_outcome.get("stealth_bonus", 0)
     efficiency_bonus = mission_outcome.get("efficiency_bonus", 0)
     
@@ -802,20 +861,51 @@ def complete_mission(story):
     
     # Check for new achievements
     new_achievements = check_achievements(session["player_stats"])
+    new_achievement_displays = []
     if new_achievements:
         unlocked = session["player_stats"].get("achievements_unlocked", [])
         for achievement_id in new_achievements:
             if achievement_id not in unlocked:
                 unlocked.append(achievement_id)
+                new_achievement_displays.append(get_achievement_display(achievement_id))
         session["player_stats"]["achievements_unlocked"] = unlocked
-        session["new_achievements"] = [get_achievement_display(aid) for aid in new_achievements]
     
-    # Generate dynamic mission completion text
-    completion_text = generate_mission_completion_text(mission_outcome, total_score)
-    story += f"\n\n{completion_text}"
-    session["story"] = story
+    # Prepare debrief data
+    bonuses = []
+    if health_bonus > 0:
+        bonuses.append({"name": "Health Bonus", "value": health_bonus})
+    if stealth_bonus > 0:
+        bonuses.append({"name": "Stealth Operations", "value": stealth_bonus})
+    if efficiency_bonus > 0:
+        bonuses.append({"name": "Tactical Efficiency", "value": efficiency_bonus})
     
-    return redirect(url_for("base_camp"))
+    # Create mission highlights from story events
+    mission_highlights = []
+    for story_entry in story_history[-3:]:  # Last 3 story entries
+        if story_entry.get("type") == "continuation" and story_entry.get("choice"):
+            mission_highlights.append(f"Executed: {story_entry['choice']}")
+    
+    # Add special highlights based on mission outcome
+    if mission_outcome.get("special_notes"):
+        mission_highlights.extend(mission_outcome["special_notes"])
+    
+    # Squad casualties from this mission
+    squad_casualties = session.get("squad_casualties", [])
+    
+    # Store debrief data
+    session["debrief_data"] = {
+        "mission": mission,
+        "mission_success": True,
+        "mission_outcome": mission_outcome,
+        "score_earned": total_score,
+        "bonuses": bonuses,
+        "mission_highlights": mission_highlights,
+        "new_achievements": new_achievement_displays,
+        "squad_casualties": squad_casualties,
+        "turn_count": turn_count
+    }
+    
+    return redirect(url_for("mission_debrief"))
 
 def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, story_history: list, difficulty_mod: dict) -> dict:
     """Calculate mission outcome based on player performance."""
@@ -823,7 +913,8 @@ def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, st
         "rating": "Standard",
         "stealth_bonus": 0,
         "efficiency_bonus": 0,
-        "special_notes": []
+        "special_notes": [],
+        "description": "Mission objectives achieved through standard military operations."
     }
     
     # Health performance
@@ -853,7 +944,7 @@ def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, st
     player_class = player.get("class", "Rifleman")
     class_achievements = {
         "Medic": "provided critical medical support",
-        "Sniper": "eliminated key targets with precision",
+        "Sniper": "eliminated key targets with precision", 
         "Gunner": "provided devastating fire support",
         "Demolitions": "destroyed strategic objectives",
         "Rifleman": "demonstrated exceptional leadership"
@@ -861,6 +952,14 @@ def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, st
     
     if random.random() < 0.4:  # 40% chance for class-specific recognition
         outcome["special_notes"].append(class_achievements.get(player_class, "showed tactical skill"))
+    
+    # Generate outcome description
+    if outcome["rating"] == "Exceptional":
+        outcome["description"] = f"Outstanding performance! Mission completed with minimal casualties and exceptional tactical execution."
+    elif outcome["rating"] == "Good":
+        outcome["description"] = f"Solid performance. Objectives achieved with good tactical awareness and effective leadership."
+    else:
+        outcome["description"] = "Mission objectives achieved through standard military operations."
     
     return outcome
 
@@ -889,9 +988,32 @@ def generate_mission_completion_text(outcome: dict, total_score: int) -> str:
     
     return completion_text
 
+@app.route("/debrief")
+def mission_debrief():
+    """Display mission debrief with detailed recap."""
+    debrief_data = session.get("debrief_data")
+    if not debrief_data:
+        return redirect(url_for("mission_menu"))
+    
+    # Get current game state
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    squad = session.get("squad", [])
+    
+    # Get achievements count
+    player_stats = session.get("player_stats", {})
+    achievements_count = len(player_stats.get("achievements_unlocked", []))
+    
+    return render_template("debrief.html",
+                         **debrief_data,
+                         player=player,
+                         resources=resources,
+                         squad=squad,
+                         achievements_count=achievements_count)
+
 @app.route("/base")
 def base_camp():
-    """Base camp summary page."""
+    """Base camp summary page.""" 
     # Check for new achievements to display
     new_achievements = session.pop("new_achievements", [])
     

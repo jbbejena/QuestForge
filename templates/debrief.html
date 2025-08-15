@@ -1,0 +1,207 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Debrief - WWII Text Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                <i class="fas fa-flag-checkered"></i>
+                Mission Debrief
+            </h1>
+            <p class="subtitle">After Action Report</p>
+        </header>
+
+        <!-- Mission Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="mission-result {{ 'success' if mission_success else 'failure' }}">
+                    <i class="fas fa-{{ 'check-circle' if mission_success else 'times-circle' }}"></i>
+                    Mission {{ 'Complete' if mission_success else 'Failed' }}
+                </h2>
+                <p>{{ mission.name }} - {{ mission.difficulty }} Difficulty</p>
+            </div>
+            
+            <div class="mission-summary">
+                <p><strong>Objective:</strong> {{ mission.desc }}</p>
+                <p><strong>Outcome:</strong> {{ mission_outcome.description }}</p>
+                
+                <div class="performance-metrics">
+                    <div class="metric">
+                        <i class="fas fa-heart"></i>
+                        <span>Health Remaining: {{ player.health }}/{{ player.max_health or 100 }}</span>
+                    </div>
+                    <div class="metric">
+                        <i class="fas fa-clock"></i>
+                        <span>Turns Taken: {{ turn_count }}</span>
+                    </div>
+                    <div class="metric">
+                        <i class="fas fa-trophy"></i>
+                        <span>Score Earned: {{ score_earned }}</span>
+                    </div>
+                    {% if mission_outcome.rating != 'Standard' %}
+                    <div class="metric special">
+                        <i class="fas fa-star"></i>
+                        <span>{{ mission_outcome.rating }} Performance</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Squad Status -->
+        {% if squad or squad_casualties %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-users"></i> Squad Status Report</h3>
+            </div>
+            
+            {% if squad %}
+            <div class="squad-status">
+                <h4 class="text-success"><i class="fas fa-check"></i> Active Personnel</h4>
+                <div class="squad-members-grid">
+                    {% for member in squad %}
+                    <div class="squad-member-card active">
+                        <i class="fas fa-user"></i>
+                        <span>{{ member }}</span>
+                        <span class="status ready">Ready</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if squad_casualties %}
+            <div class="squad-casualties">
+                <h4 class="text-warning"><i class="fas fa-first-aid"></i> Casualties</h4>
+                <div class="squad-members-grid">
+                    {% for casualty in squad_casualties %}
+                    <div class="squad-member-card casualty">
+                        <i class="fas fa-user-injured"></i>
+                        <span>{{ casualty }}</span>
+                        <span class="status wounded">Wounded - Medical Leave</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="casualty-note">
+                    <i class="fas fa-info-circle"></i>
+                    Wounded personnel will not be available for the next mission.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Mission Highlights -->
+        {% if mission_highlights %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-book"></i> Mission Highlights</h3>
+            </div>
+            <div class="highlights-list">
+                {% for highlight in mission_highlights %}
+                <div class="highlight-item">
+                    <i class="fas fa-chevron-right"></i>
+                    <span>{{ highlight }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Rewards & Recognition -->
+        {% if bonuses or new_achievements %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-medal"></i> Commendations & Rewards</h3>
+            </div>
+            
+            {% if bonuses %}
+            <div class="bonuses-section">
+                <h4>Performance Bonuses</h4>
+                {% for bonus in bonuses %}
+                <div class="bonus-item">
+                    <i class="fas fa-plus"></i>
+                    <span>{{ bonus.name }}: +{{ bonus.value }} points</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if new_achievements %}
+            <div class="achievements-section">
+                <h4>New Achievements Unlocked</h4>
+                {% for achievement in new_achievements %}
+                <div class="achievement-unlock">
+                    <i class="fas fa-trophy"></i>
+                    <div class="achievement-info">
+                        <strong>{{ achievement.name }}</strong>
+                        <p>{{ achievement.description }}</p>
+                        {% if achievement.trivia %}
+                        <p class="trivia"><em>{{ achievement.trivia }}</em></p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Resource Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-boxes"></i> Equipment Status</h3>
+            </div>
+            <div class="resources-grid">
+                <div class="resource-item">
+                    <i class="fas fa-bullseye"></i>
+                    <span>Ammunition: {{ resources.ammo }}</span>
+                </div>
+                <div class="resource-item">
+                    <i class="fas fa-first-aid"></i>
+                    <span>Medical Kits: {{ resources.medkit }}</span>
+                </div>
+                <div class="resource-item">
+                    <i class="fas fa-bomb"></i>
+                    <span>Grenades: {{ resources.grenade }}</span>
+                </div>
+                {% if resources.intel > 0 %}
+                <div class="resource-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Intelligence: {{ resources.intel }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="debrief-actions">
+            <a href="{{ url_for('mission_menu') }}" class="btn btn-primary btn-large">
+                <i class="fas fa-rocket"></i>
+                Next Mission
+            </a>
+            
+            <a href="{{ url_for('base_camp') }}" class="btn btn-secondary">
+                <i class="fas fa-home"></i>
+                Return to Base
+            </a>
+            
+            {% if achievements_count > 0 %}
+            <a href="{{ url_for('achievements') }}" class="btn btn-info">
+                <i class="fas fa-trophy"></i>
+                View Achievements
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
