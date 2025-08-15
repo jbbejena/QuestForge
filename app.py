@@ -636,7 +636,8 @@ def make_choice():
         logging.info(f"Turn {turn_count}: Player chose option {choice_index + 1}: {chosen_action}")
         
         # Update achievement stats for choice made
-        session["player_stats"] = update_player_stats(session["player_stats"], "choice_made")
+        player_stats = session.get("player_stats", initialize_player_stats())
+        session["player_stats"] = update_player_stats(player_stats, "choice_made")
         
         # Store the choice separately for progressive display
         session["last_choice"] = chosen_action
@@ -695,7 +696,8 @@ def make_choice():
         
         # Check if player died
         if player.get("health", 0) <= 0:
-            session["player_stats"] = update_player_stats(session["player_stats"], "player_death")
+            player_stats = session.get("player_stats", initialize_player_stats())
+            session["player_stats"] = update_player_stats(player_stats, "player_death")
             story += "\n--- MISSION FAILED ---\nYou have been critically wounded and the mission is aborted."
             session["story"] = story
             return redirect(url_for("base_camp"))
@@ -786,7 +788,8 @@ def make_choice():
             combat_result = resolve_combat_encounter(player, chosen_action, mission)
             if combat_result["victory"]:
                 session["battles_won"] = session.get("battles_won", 0) + 1
-                session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
+                player_stats = session.get("player_stats", initialize_player_stats())
+                session["player_stats"] = update_player_stats(player_stats, "combat_victory")
                 story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
             else:
                 story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
@@ -1087,7 +1090,8 @@ def use_item():
             player["morale"] = min(100, player.get("morale", 100) + 10)
             
             # Update achievement stats
-            session["player_stats"] = update_player_stats(session["player_stats"], "item_used")
+            player_stats = session.get("player_stats", initialize_player_stats())
+            session["player_stats"] = update_player_stats(player_stats, "item_used")
             
             session["player"] = player
             session["resources"] = resources
