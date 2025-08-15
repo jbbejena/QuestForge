@@ -105,56 +105,55 @@ def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tok
 
 def parse_choices(text: str):
     """Extract numbered choices from AI-generated text with improved parsing."""
+    if not text:
+        return ["Continue forward.", "Take defensive position.", "Retreat to safety."]
+    
     lines = text.splitlines()
-    choices = []
+    choices = {}  # Use dict to handle out-of-order choices
     
-    # First, try to find choices in the most recent part of the text
-    recent_lines = lines[-20:]  # Focus on last 20 lines where choices are likely
-    
-    for line in recent_lines:
+    # Look through all lines for choice patterns
+    for line in lines:
         line = line.strip()
         if not line:
             continue
             
         # Match patterns like "1. Choice text" or "1) Choice text" or "1 - Choice text"
-        match = re.match(r"\s*([1-3])[\.\)\-\s]+(.+)", line)
-        if match and len(match.group(2).strip()) > 0:
+        match = re.match(r"^\s*([1-3])[\.\)\-\:\s]+(.+)", line)
+        if match:
             choice_number = int(match.group(1))
             choice_text = match.group(2).strip()
             
-            # Remove any markdown or HTML tags
-            choice_text = re.sub(r'<[^>]+>', '', choice_text)
+            # Clean up the choice text
+            choice_text = re.sub(r'<[^>]+>', '', choice_text)  # Remove HTML
             choice_text = re.sub(r'\*\*([^\*]*)\*\*', r'\1', choice_text)  # Remove bold
             choice_text = re.sub(r'\*([^\*]*)\*', r'\1', choice_text)  # Remove italic
+            choice_text = choice_text.rstrip('.')  # Remove trailing period if present
             
-            # Only add if we haven't already found this choice number
-            if len(choices) < choice_number:
-                choices.extend([''] * (choice_number - len(choices)))
-            if choice_number <= 3 and (len(choices) < choice_number or choices[choice_number-1] == ''):
-                if choice_number == len(choices) + 1:
-                    choices.append(choice_text)
-                elif choice_number <= len(choices):
-                    choices[choice_number-1] = choice_text
+            if len(choice_text) > 5:  # Only accept substantial choices
+                choices[choice_number] = choice_text
     
-    # Remove empty choices and ensure we have valid ones
-    choices = [choice for choice in choices if choice and choice.strip()]
+    # Convert to ordered list
+    ordered_choices = []
+    for i in range(1, 4):
+        if i in choices:
+            ordered_choices.append(choices[i])
     
-    # Fallback choices if parsing fails or insufficient choices found
+    # If we don't have 3 choices, add fallback choices
     fallback_choices = [
-        "Advance cautiously forward.",
-        "Take defensive position and observe.",
-        "Retreat to a safer location."
+        "Advance cautiously forward",
+        "Take defensive position and observe", 
+        "Retreat to a safer location"
     ]
     
-    # Ensure we always have exactly 3 choices
-    while len(choices) < 3:
-        fallback_index = len(choices)
+    while len(ordered_choices) < 3:
+        fallback_index = len(ordered_choices)
         if fallback_index < len(fallback_choices):
-            choices.append(fallback_choices[fallback_index])
+            ordered_choices.append(fallback_choices[fallback_index])
         else:
-            choices.append("Continue with the mission.")
+            ordered_choices.append("Continue with the mission")
     
-    return choices[:3]
+    logging.info(f"Parsed choices from text: {ordered_choices}")
+    return ordered_choices[:3]
 
 def get_difficulty_modifier(difficulty: str) -> dict:
     """Get difficulty-based modifiers for missions."""
@@ -579,46 +578,39 @@ def make_choice():
             phase_instruction = "Move toward mission completion. Provide opportunities to complete the objective or create final dramatic moments."
         
         system_msg = (
-            f"You are a WWII text adventure narrator maintaining strict story continuity. "
-            f"CRITICAL REQUIREMENTS: "
-            f"1. Continue the EXACT existing storyline - NEVER restart or reset the scenario. "
-            f"2. This is turn {turn_count} of an ongoing mission in progress. "
-            f"3. Mission phase: {mission_phase}. {phase_instruction} "
-            f"4. Build directly upon the player's previous choice with immediate consequences. "
-            f"5. ALWAYS end with exactly 3 numbered choices in this exact format: "
-            f"   1. [specific tactical action] "
-            f"   2. [different tactical action] "
-            f"   3. [alternative tactical action] "
-            f"6. Each choice must be a concrete action, not vague statements. "
-            f"7. Choices should advance the current storyline and mission objective."
+            f"You are a WWII text adventure narrator. Continue the story based on the player's choice. "
+            f"REQUIREMENTS: "
+            f"1. Show immediate consequences of the player's choice: {chosen_action} "
+            f"2. This is turn {turn_count} of mission: {mission.get('name')} "
+            f"3. {phase_instruction} "
+            f"4. ALWAYS end with exactly 3 numbered tactical choices like this: "
+            f"1. [specific action] "
+            f"2. [different action] "
+            f"3. [alternative action] "
+            f"5. Keep choices concrete and tactical, not vague. "
+            f"6. Write 2-3 paragraphs then provide the 3 choices."
         )
         
-        # Build comprehensive story context to prevent AI confusion
-        story_history = session.get("story_history", [])
-        
-        # Create a concise but complete context from recent story progression
-        context_summary = ""
-        recent_story_progression = ""
-        
-        # Use the last 2-3 turns for immediate context
-        if len(story_history) > 1:
-            recent_turns = story_history[-2:]  # Focus on most recent context
-            for turn in recent_turns:
-                if turn.get("choice") and turn.get("content"):
-                    context_summary += f"Previous: '{turn['choice']}' resulted in: {turn['content'][:100]}...\n"
-                    recent_story_progression += f"> {turn['choice']}\n{turn['content']}\n\n"
-        
         user_prompt = (
-            f"MISSION: {mission.get('name')} (Turn {turn_count})\n"
-            f"PLAYER: {player.get('name')} - {player.get('class')} with {player.get('health', 100)} health\n"
-            f"PHASE: {mission_phase}\n\n"
-            f"RECENT STORY:\n{recent_story_progression}"
-            f"CURRENT CHOICE: {chosen_action}\n\n"
-            f"Show the immediate results of this choice. Continue this exact storyline."
+            f"Player chose: {chosen_action}\n"
+            f"Mission: {mission.get('name')}\n"
+            f"Player: {player.get('name')} ({player.get('class')}) - Health: {player.get('health', 100)}\n"
+            f"Continue the story showing what happens after this choice."
         )
         
         new_content = ai_chat(system_msg, user_prompt)
-        print(f"DEBUG: Raw AI content: {new_content}")
+        logging.info(f"Generated content: {new_content[:200]}...")
+        
+        # Parse choices from the new content immediately
+        fresh_choices = parse_choices(new_content)
+        logging.info(f"Parsed choices: {fresh_choices}")
+        
+        # If no valid choices found, add fallback choices to the content
+        if len(fresh_choices) < 3:
+            fallback_choices = generate_contextual_choices(player, mission, turn_count)
+            choices_text = f"\n\n1. {fallback_choices[0]}\n2. {fallback_choices[1]}\n3. {fallback_choices[2]}"
+            new_content += choices_text
+            logging.info(f"Added fallback choices: {fallback_choices}")
         
         # Progressive story system: separate new content from base story
         choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
@@ -639,17 +631,6 @@ def make_choice():
         # Update the full story for next iteration - this is critical for choice parsing
         new_full_story = base_story + choice_result
         session["story"] = new_full_story
-        
-        # Ensure we have valid choices - if AI didn't provide them, generate fallbacks
-        parsed_choices = parse_choices(new_content)
-        if len(parsed_choices) < 3 or all(choice == "Continue forward." for choice in parsed_choices):
-            # Generate contextual fallback choices based on current situation
-            fallback_choices = generate_contextual_choices(player, mission, turn_count)
-            # Append fallback choices to the story so they can be parsed
-            choice_append = f"\n\nYour options:\n1. {fallback_choices[0]}\n2. {fallback_choices[1]}\n3. {fallback_choices[2]}"
-            new_full_story += choice_append
-            session["story"] = new_full_story
-            session["new_content"] = choice_result + choice_append
         
         # Critical optimization: limit story history to prevent session bloat
         if len(story_history) > 6:
