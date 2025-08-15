@@ -277,6 +277,63 @@ def generate_dynamic_consequences(chosen_action: str, player: dict, resources: d
     elif any(word in action_lower for word in ["help", "treat", "medical", "wounded", "injured"]):
         if player_class == "Medic" and random.random() < 0.4:
             events.append("Your medical expertise saves valuable time and lives.")
+
+def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) -> dict:
+    """Resolve combat encounters with detailed outcomes."""
+    player_class = player.get("class", "Rifleman")
+    difficulty = mission.get("difficulty", "Medium")
+    
+    # Base combat stats
+    base_success_chance = 0.6
+    base_damage = 15
+    
+    # Class bonuses
+    class_modifiers = {
+        "Gunner": {"success": 0.8, "damage_reduction": 0.7, "ammo_cost": 2},
+        "Sniper": {"success": 0.9, "damage_reduction": 0.5, "ammo_cost": 1},
+        "Rifleman": {"success": 0.7, "damage_reduction": 0.8, "ammo_cost": 1},
+        "Medic": {"success": 0.5, "damage_reduction": 0.9, "ammo_cost": 1},
+        "Demolitions": {"success": 0.6, "damage_reduction": 0.6, "ammo_cost": 3}
+    }
+    
+    modifier = class_modifiers.get(player_class, class_modifiers["Rifleman"])
+    
+    # Difficulty adjustments
+    difficulty_mods = {"Easy": 0.2, "Medium": 0.0, "Hard": -0.2}
+    success_chance = base_success_chance + difficulty_mods.get(difficulty, 0.0) + (modifier["success"] - 0.6)
+    
+    # Action-based modifiers
+    action_lower = chosen_action.lower()
+    if "stealth" in action_lower or "sneak" in action_lower:
+        success_chance += 0.2
+    elif "charge" in action_lower or "assault" in action_lower:
+        success_chance -= 0.1
+        base_damage += 5
+    
+    victory = random.random() < success_chance
+    damage_taken = 0 if victory else int(base_damage * modifier["damage_reduction"])
+    
+    if victory:
+        descriptions = [
+            f"Your {player_class.lower()} training pays off - enemy neutralized!",
+            "Superior tactics lead to a decisive victory!",
+            "Enemy forces are quickly overwhelmed by your assault!"
+        ]
+    else:
+        descriptions = [
+            f"The enemy puts up fierce resistance! You take {damage_taken} damage.",
+            f"Combat is brutal - you're wounded but fighting continues! -{damage_taken} health.",
+            f"Enemy fire finds its mark! You suffer {damage_taken} damage but press on."
+        ]
+    
+    return {
+        "victory": victory,
+        "damage": damage_taken,
+        "ammo_used": modifier["ammo_cost"],
+        "description": random.choice(descriptions)
+    }
+
+
             player["morale"] = min(100, player.get("morale", 100) + 15)
         
     # Resource management events
@@ -397,9 +454,21 @@ def mission_menu():
     completed = set(session.get("completed", []))
     available = [m for m in MISSIONS if m["name"] not in completed]
     
-    # If all missions completed, allow replay
+    # Campaign progression system
+    missions_completed_count = len(completed)
+    
     if not available:
-        available = MISSIONS
+        # Unlock advanced campaign missions
+        advanced_missions = [
+            {"name": "Operation Overlord", "desc": "Lead the D-Day assault on Normandy beach.", "difficulty": "Extreme"},
+            {"name": "Battle of the Bulge", "desc": "Hold the line against the German counteroffensive.", "difficulty": "Extreme"},
+            {"name": "Liberation of Paris", "desc": "Spearhead the liberation of the French capital.", "difficulty": "Hard"}
+        ]
+        available = MISSIONS + advanced_missions
+    else:
+        # Lock advanced missions until player completes basic ones
+        if missions_completed_count < 3:
+            available = [m for m in available if m.get("difficulty") != "Extreme"]
     
     # Get achievements count for template
     player_stats = session.get("player_stats", {})
@@ -538,10 +607,31 @@ def make_choice():
         # Initialize story variable for compatibility
         story = current_story + f"\n\n> You chose: {chosen_action}\n"
         
-        # Check for mission completion keywords
-        completion_keywords = ["return to base", "exfiltrate", "mission complete", "objective secured", "fall back"]
+        # Enhanced mission completion detection
+        completion_keywords = ["return to base", "exfiltrate", "mission complete", "objective secured", "fall back", "retreat", "withdraw"]
+        success_keywords = ["bridge destroyed", "prisoners freed", "documents secured", "tower captured", "supplies secured", "objective complete"]
+        
+        # Check for explicit completion choices
         if any(keyword in chosen_action.lower() for keyword in completion_keywords):
             return complete_mission(story)
+        
+        # Check for success indicators in AI response
+        if any(keyword in new_content.lower() for keyword in success_keywords):
+            return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
+        
+        # Auto-complete after 6 turns to prevent infinite games
+        if turn_count >= 6:
+            mission_name = mission.get("name", "").lower()
+            if "sabotage" in mission_name:
+                completion_story = "\n\nWith the charges set and the area clear, you signal the detonation. The bridge collapses in a thunderous explosion, cutting off enemy supply lines. Mission accomplished!"
+            elif "rescue" in mission_name:
+                completion_story = "\n\nAfter fierce fighting, you successfully extract the prisoners and reach the extraction point. The POWs are safe. Mission accomplished!"
+            elif "intel" in mission_name:
+                completion_story = "\n\nWith the classified documents secured, you make your way to the extraction point. The intelligence will prove invaluable. Mission accomplished!"
+            else:
+                completion_story = "\n\nAfter sustained combat operations, you have achieved the mission objectives and successfully return to base. Mission accomplished!"
+            
+            return complete_mission(story + completion_story)
         
         # Apply dynamic choice consequences
         player = session.get("player", {})
@@ -643,11 +733,19 @@ def make_choice():
             if len(story_lines) > 50:
                 session["base_story"] = '\n'.join(story_lines[:20] + story_lines[-20:])  # Keep start and recent
         
-        # Check for combat and update stats
+        # Enhanced combat system
         if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
-            if random.random() < 0.6:  # 60% chance to win combat
+            combat_result = resolve_combat_encounter(player, chosen_action, mission)
+            if combat_result["victory"]:
                 session["battles_won"] = session.get("battles_won", 0) + 1
                 session["player_stats"] = update_player_stats(session["player_stats"], "combat_victory")
+                story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
+            else:
+                story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
+            
+            # Apply combat consequences
+            player["health"] = max(0, player.get("health", 100) - combat_result.get("damage", 0))
+            resources["ammo"] = max(0, resources.get("ammo", 0) - combat_result.get("ammo_used", 1))
         
         # Auto-save game state
         session["player"] = player
