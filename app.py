@@ -108,15 +108,36 @@ def parse_choices(text: str):
     lines = text.splitlines()
     choices = []
     
-    for line in lines:
+    # First, try to find choices in the most recent part of the text
+    recent_lines = lines[-20:]  # Focus on last 20 lines where choices are likely
+    
+    for line in recent_lines:
+        line = line.strip()
+        if not line:
+            continue
+            
         # Match patterns like "1. Choice text" or "1) Choice text" or "1 - Choice text"
-        match = re.match(r"\s*([1-3])[\.\)\-\s]+(.+)", line.strip())
+        match = re.match(r"\s*([1-3])[\.\)\-\s]+(.+)", line)
         if match and len(match.group(2).strip()) > 0:
+            choice_number = int(match.group(1))
             choice_text = match.group(2).strip()
+            
             # Remove any markdown or HTML tags
             choice_text = re.sub(r'<[^>]+>', '', choice_text)
             choice_text = re.sub(r'\*\*([^\*]*)\*\*', r'\1', choice_text)  # Remove bold
-            choices.append(choice_text)
+            choice_text = re.sub(r'\*([^\*]*)\*', r'\1', choice_text)  # Remove italic
+            
+            # Only add if we haven't already found this choice number
+            if len(choices) < choice_number:
+                choices.extend([''] * (choice_number - len(choices)))
+            if choice_number <= 3 and (len(choices) < choice_number or choices[choice_number-1] == ''):
+                if choice_number == len(choices) + 1:
+                    choices.append(choice_text)
+                elif choice_number <= len(choices):
+                    choices[choice_number-1] = choice_text
+    
+    # Remove empty choices and ensure we have valid ones
+    choices = [choice for choice in choices if choice and choice.strip()]
     
     # Fallback choices if parsing fails or insufficient choices found
     fallback_choices = [
@@ -143,6 +164,63 @@ def get_difficulty_modifier(difficulty: str) -> dict:
         "Hard": {"health_loss_min": 10, "health_loss_max": 30, "reward": 200, "event_chance": 0.5}
     }
     return modifiers.get(difficulty, modifiers["Medium"])
+
+def generate_contextual_choices(player: dict, mission: dict, turn_count: int) -> list:
+    """Generate contextual fallback choices based on current game state."""
+    mission_type = mission.get("name", "").lower()
+    player_class = player.get("class", "Rifleman").lower()
+    difficulty = mission.get("difficulty", "Medium")
+    
+    # Base choice templates
+    combat_choices = [
+        "Engage the enemy with direct fire.",
+        "Attempt to flank the enemy position.",
+        "Call for covering fire and advance."
+    ]
+    
+    stealth_choices = [
+        "Move silently through the shadows.",
+        "Create a distraction elsewhere.",
+        "Wait for the patrol to pass."
+    ]
+    
+    tactical_choices = [
+        "Assess the tactical situation carefully.",
+        "Coordinate with your squad members.",
+        "Push forward to the objective."
+    ]
+    
+    # Context-based choice selection
+    if "sabotage" in mission_type or "demolitions" in player_class:
+        return [
+            "Set explosive charges on the target.",
+            "Scout for alternative approaches.",
+            "Signal the squad to provide cover."
+        ]
+    elif "rescue" in mission_type or "medic" in player_class:
+        return [
+            "Locate and assist wounded allies.",
+            "Establish a safe extraction route.",
+            "Provide medical support where needed."
+        ]
+    elif "sniper" in player_class:
+        return [
+            "Find an elevated firing position.",
+            "Identify high-value targets.",
+            "Provide overwatch for the team."
+        ]
+    elif turn_count > 3:
+        return [
+            "Make a final push to complete the mission.",
+            "Secure the area before proceeding.",
+            "Prepare for extraction."
+        ]
+    elif difficulty == "Hard":
+        return combat_choices
+    elif turn_count <= 2:
+        return stealth_choices
+    else:
+        return tactical_choices
 
 def generate_dynamic_consequences(chosen_action: str, player: dict, resources: dict, mission: dict, turn_count: int) -> str:
     """Generate dynamic consequences based on player choice and context."""
@@ -502,12 +580,17 @@ def make_choice():
         
         system_msg = (
             f"You are a WWII text adventure narrator maintaining strict story continuity. "
-            f"CRITICAL: Continue the EXACT existing storyline - NEVER restart or reset the scenario. "
-            f"This is turn {turn_count} of an ongoing mission in progress. "
-            f"Mission phase: {mission_phase}. {phase_instruction} "
-            f"Build directly upon the player's previous choice with immediate consequences. "
-            f"End with exactly 3 numbered tactical choices advancing THIS storyline. "
-            f"Format: 1. [action] 2. [action] 3. [action]"
+            f"CRITICAL REQUIREMENTS: "
+            f"1. Continue the EXACT existing storyline - NEVER restart or reset the scenario. "
+            f"2. This is turn {turn_count} of an ongoing mission in progress. "
+            f"3. Mission phase: {mission_phase}. {phase_instruction} "
+            f"4. Build directly upon the player's previous choice with immediate consequences. "
+            f"5. ALWAYS end with exactly 3 numbered choices in this exact format: "
+            f"   1. [specific tactical action] "
+            f"   2. [different tactical action] "
+            f"   3. [alternative tactical action] "
+            f"6. Each choice must be a concrete action, not vague statements. "
+            f"7. Choices should advance the current storyline and mission objective."
         )
         
         # Build comprehensive story context to prevent AI confusion
@@ -557,11 +640,16 @@ def make_choice():
         new_full_story = base_story + choice_result
         session["story"] = new_full_story
         
-        # Debug: Check what choices are parsed from the updated story
-        parsed_choices = parse_choices(new_full_story)
-        print(f"DEBUG: Parsed choices from updated story: {parsed_choices}")
-        print(f"DEBUG: Choice parsing from new content: {parse_choices(new_content)}")
-        print(f"DEBUG: Last 500 chars of story: {new_full_story[-500:]}")
+        # Ensure we have valid choices - if AI didn't provide them, generate fallbacks
+        parsed_choices = parse_choices(new_content)
+        if len(parsed_choices) < 3 or all(choice == "Continue forward." for choice in parsed_choices):
+            # Generate contextual fallback choices based on current situation
+            fallback_choices = generate_contextual_choices(player, mission, turn_count)
+            # Append fallback choices to the story so they can be parsed
+            choice_append = f"\n\nYour options:\n1. {fallback_choices[0]}\n2. {fallback_choices[1]}\n3. {fallback_choices[2]}"
+            new_full_story += choice_append
+            session["story"] = new_full_story
+            session["new_content"] = choice_result + choice_append
         
         # Critical optimization: limit story history to prevent session bloat
         if len(story_history) > 6:
