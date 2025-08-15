@@ -223,7 +223,9 @@ def update_player_stats(stats: Dict[str, Any], event: str, **kwargs) -> Dict[str
         
     elif event == "class_selected":
         class_name = kwargs.get("class_name")
-        if class_name and class_name not in stats["classes_used"]:
+        if class_name and class_name not in stats.get("classes_used", []):
+            if "classes_used" not in stats:
+                stats["classes_used"] = []
             stats["classes_used"].append(class_name)
             
     elif event == "choice_made":
