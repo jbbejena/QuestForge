@@ -1495,6 +1495,156 @@ input[type="text"]:focus, select:focus {
     }
 }
 
+/* Combat System Styles */
+.combat-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+}
+
+.combat-content {
+    background: linear-gradient(135deg, var(--color-dark) 0%, var(--color-darker) 100%);
+    margin: 5% auto;
+    padding: var(--spacing-lg);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--border-radius-lg);
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: combatAppear 0.5s ease-out;
+}
+
+@keyframes combatAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.combat-header h2 {
+    text-align: center;
+    color: var(--color-accent);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-xl);
+}
+
+.combat-status {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.combat-log {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    height: 150px;
+    overflow-y: auto;
+    margin-bottom: var(--spacing-lg);
+    font-family: monospace;
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
+.combat-log p {
+    margin-bottom: var(--spacing-xs);
+    color: var(--color-text-muted);
+}
+
+.combat-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.combat-btn {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    border: 2px solid var(--color-primary-light);
+    border-radius: var(--border-radius);
+    color: white;
+    padding: var(--spacing-md);
+    font-size: var(--font-size-base);
+    font-weight: bold;
+    cursor: pointer;
+    transition: var(--transition);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.combat-btn:hover {
+    background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(76, 124, 89, 0.3);
+}
+
+.combat-btn.attack {
+    border-color: var(--color-danger);
+    background: linear-gradient(135deg, var(--color-danger), #DC143C);
+}
+
+.combat-btn.defend {
+    border-color: var(--color-info);
+    background: linear-gradient(135deg, var(--color-info), #5F9EA0);
+}
+
+.combat-btn.grenade {
+    border-color: var(--color-warning);
+    background: linear-gradient(135deg, var(--color-warning), #FFA500);
+}
+
+.combat-btn.retreat {
+    border-color: var(--color-text-muted);
+    background: linear-gradient(135deg, #666, #888);
+}
+
+.combat-resources {
+    text-align: center;
+    padding: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+}
+
+.combat-resources span {
+    margin: 0 var(--spacing-md);
+    font-weight: bold;
+    color: var(--color-accent);
+}
+
+/* Mobile Combat Responsiveness */
+@media (max-width: 768px) {
+    .combat-content {
+        width: 95%;
+        margin: 2% auto;
+        padding: var(--spacing-md);
+    }
+    
+    .combat-status {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+    
+    .combat-actions {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+}
+
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
     * {

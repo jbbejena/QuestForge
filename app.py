@@ -1578,6 +1578,80 @@ def cleanup_session():
     session.clear()
     session.update(session_copy)
 
+@app.route("/get_combat_stats")
+def get_combat_stats():
+    """Return current player combat stats for JavaScript."""
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    
+    return jsonify({
+        "health": player.get("health", 100),
+        "ammo": resources.get("ammo", 12),
+        "grenades": resources.get("grenade", 2),
+        "medkits": resources.get("medkit", 2),
+        "enemy_health": 100  # Can be randomized or based on mission difficulty
+    })
+
+@app.route("/combat_result", methods=["POST"])
+def combat_result():
+    """Process combat results and update player state."""
+    try:
+        data = request.get_json()
+        outcome = data.get("outcome")
+        player_health = max(0, data.get("playerHealth", 100))
+        player_ammo = max(0, data.get("playerAmmo", 12))
+        player_grenades = max(0, data.get("playerGrenades", 2))
+        rounds = data.get("rounds", 1)
+        
+        # Update player stats
+        player = session.get("player", {})
+        player["health"] = player_health
+        session["player"] = player
+        
+        # Update resources
+        resources = session.get("resources", {})
+        resources["ammo"] = player_ammo
+        resources["grenade"] = player_grenades
+        session["resources"] = resources
+        
+        # Update player stats for achievements
+        player_stats = session.get("player_stats", initialize_player_stats())
+        
+        if outcome == "victory":
+            session["score"] = session.get("score", 0) + (50 * rounds)
+            session["battles_won"] = session.get("battles_won", 0) + 1
+            player_stats = update_player_stats(player_stats, "combat_victory")
+            message = "Combat victorious! Enemy defeated."
+            
+            # Bonus rewards for good performance
+            if player_health > 50:
+                resources["medkit"] = resources.get("medkit", 0) + 1
+                message += " Medical supplies recovered!"
+                
+        elif outcome == "retreat":
+            message = "Successfully retreated from combat."
+            player_stats = update_player_stats(player_stats, "combat_retreat")
+            
+        elif outcome == "defeat":
+            message = "Critically wounded in combat. Mission compromised."
+            player_stats = update_player_stats(player_stats, "combat_defeat")
+            player["health"] = max(10, player_health)
+            session["player"] = player
+            
+        else:
+            message = "Combat resolved."
+        
+        session["player_stats"] = player_stats
+        session["resources"] = resources
+        
+        return jsonify({"success": True, "message": message})
+        
+    except Exception as e:
+        logging.error(f"Combat result error: {e}")
+        return jsonify({"success": False, "message": "Combat resolution failed"})
+
+
+
 @app.route("/reset")
 def reset():
     """Reset game session."""

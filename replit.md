@@ -4,6 +4,14 @@
 
 This is a mobile-optimized, text-based WWII adventure game built with Flask. Players create soldiers with customizable attributes (name, rank, class, weapon) and embark on various missions with different difficulty levels. The game features an achievement system that unlocks historical WWII trivia facts as players progress, combining entertainment with educational content. The application is designed as a Progressive Web App (PWA) with mobile-first responsive design and optional AI-powered storytelling through OpenAI integration.
 
+## Recent Changes (August 2025)
+
+- **Enhanced Auto-scroll System** - Significantly improved story text auto-scrolling during typewriter effect with smooth 50ms intervals
+- **Complete Combat System** - Turn-based combat triggered by AI story keywords featuring tactical actions, health/resource management, and consequences
+- **Advanced Keyboard Controls** - Comprehensive shortcuts including Ctrl+S (save), Ctrl+M (medkit), number keys for choices, and combat hotkeys
+- **Backend API Integration** - Flask routes for combat mechanics, item usage, and save/load functionality with proper error handling
+- **Mobile Combat Interface** - Responsive combat modal with animations and touch-friendly controls
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

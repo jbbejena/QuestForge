@@ -58,18 +58,19 @@ function typeWriterEffect(element, callback) {
                 element.innerHTML += textContent.charAt(i);
             }
             
-            // Auto-scroll every few characters to keep text visible
+            // Enhanced auto-scroll every few characters to keep text visible
             const now = Date.now();
-            if (now - lastScrollTime > 100) { // More frequent scrolling for better UX
-                // Scroll to bottom of viewport to show new text
+            if (now - lastScrollTime > 50) { // Even more frequent scrolling for smoother experience
+                // Always scroll to keep the text in view during typing
                 const elementRect = element.getBoundingClientRect();
                 const windowHeight = window.innerHeight;
                 
-                // Only scroll if element is near or below viewport
-                if (elementRect.bottom > windowHeight - 100) {
-                    window.scrollTo({
-                        top: window.scrollY + (elementRect.bottom - windowHeight + 100),
-                        behavior: 'smooth'
+                // Continuous smooth scrolling to follow the text
+                if (elementRect.bottom > windowHeight - 150) {
+                    element.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'end',
+                        inline: 'nearest' 
                     });
                 }
                 lastScrollTime = now;
@@ -80,7 +81,27 @@ function typeWriterEffect(element, callback) {
         } else {
             // Final scroll and restore original HTML formatting
             element.innerHTML = originalHTML;
-            element.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            
+            // Smooth scroll to show the complete content and any choices
+            setTimeout(() => {
+                element.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'end',
+                    inline: 'nearest' 
+                });
+                
+                // Also scroll to show choice buttons if they exist
+                const choiceButtons = document.querySelector('.choice-buttons');
+                if (choiceButtons) {
+                    setTimeout(() => {
+                        choiceButtons.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'center' 
+                        });
+                    }, 500);
+                }
+            }, 100);
+            
             if (callback) callback();
         }
     }
@@ -100,7 +121,7 @@ function confirmChoice(choiceNumber, choiceText) {
     }
 }
 
-// Enhanced game actions
+// Enhanced game actions with combat system
 function initializeGameActions() {
     // Add keyboard shortcuts
     document.addEventListener('keydown', function(e) {
@@ -131,9 +152,328 @@ function initializeGameActions() {
                     e.preventDefault();
                     useItem('grenade');
                     break;
+                case 'c':
+                    e.preventDefault();
+                    const combatModal = document.getElementById('combatModal');
+                    if (combatModal && combatModal.style.display === 'block') {
+                        performCombatAction('attack');
+                    }
+                    break;
             }
         }
     });
+    
+    // Initialize combat system
+    initializeCombatSystem();
+}
+
+// Combat System Implementation
+function initializeCombatSystem() {
+    // Check if combat is triggered in the story
+    const storyContent = document.querySelector('#story-content, #new-content, #full-story');
+    if (storyContent) {
+        const story = storyContent.textContent.toLowerCase();
+        const combatKeywords = ['enemy spotted', 'gunfire', 'combat', 'battle', 'firefight', 'attacked', 'ambush', 'enemy soldiers'];
+        
+        if (combatKeywords.some(keyword => story.includes(keyword))) {
+            // Delay to allow story typing to complete
+            setTimeout(() => {
+                triggerCombatEncounter();
+            }, 2000);
+        }
+    }
+}
+
+function triggerCombatEncounter() {
+    // Create combat modal if it doesn't exist
+    if (!document.getElementById('combatModal')) {
+        createCombatModal();
+    }
+    
+    // Start combat encounter
+    showNotification('Combat encounter initiated!', 'warning');
+    setTimeout(() => {
+        document.getElementById('combatModal').style.display = 'block';
+        initializeCombatRound();
+    }, 1000);
+}
+
+function createCombatModal() {
+    const modal = document.createElement('div');
+    modal.id = 'combatModal';
+    modal.className = 'combat-modal';
+    modal.innerHTML = `
+        <div class="combat-content">
+            <div class="combat-header">
+                <h2>⚔️ Combat Encounter</h2>
+                <div class="combat-status">
+                    <div class="player-status">
+                        <h3>Your Status</h3>
+                        <div class="health-bar">
+                            <div class="health-fill" id="combatPlayerHealth"></div>
+                            <span id="combatPlayerHealthText">100/100</span>
+                        </div>
+                    </div>
+                    <div class="enemy-status">
+                        <h3>Enemy Status</h3>
+                        <div class="health-bar">
+                            <div class="health-fill enemy-health" id="combatEnemyHealth"></div>
+                            <span id="combatEnemyHealthText">100/100</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="combat-log" id="combatLog">
+                <p>Enemy forces spotted! Prepare for combat!</p>
+            </div>
+            
+            <div class="combat-actions">
+                <button onclick="performCombatAction('attack')" class="combat-btn attack">🔫 Attack</button>
+                <button onclick="performCombatAction('defend')" class="combat-btn defend">🛡️ Defend</button>
+                <button onclick="performCombatAction('grenade')" class="combat-btn grenade">💣 Grenade</button>
+                <button onclick="performCombatAction('retreat')" class="combat-btn retreat">🏃 Retreat</button>
+            </div>
+            
+            <div class="combat-resources">
+                <span>Ammo: <span id="combatAmmo">12</span></span>
+                <span>Grenades: <span id="combatGrenades">2</span></span>
+                <span>Medkits: <span id="combatMedkits">2</span></span>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+let combatState = {
+    playerHealth: 100,
+    enemyHealth: 100,
+    playerAmmo: 12,
+    playerGrenades: 2,
+    playerMedkits: 2,
+    round: 1,
+    playerDefending: false
+};
+
+function initializeCombatRound() {
+    // Initialize combat with player's current stats
+    fetch('/get_combat_stats')
+        .then(response => response.json())
+        .then(data => {
+            combatState.playerHealth = data.health || 100;
+            combatState.playerAmmo = data.ammo || 12;
+            combatState.playerGrenades = data.grenades || 2;
+            combatState.playerMedkits = data.medkits || 2;
+            combatState.enemyHealth = data.enemy_health || 100;
+            
+            updateCombatDisplay();
+        })
+        .catch(() => {
+            // Use default values if fetch fails
+            updateCombatDisplay();
+        });
+}
+
+function performCombatAction(action) {
+    if (combatState.enemyHealth <= 0 || combatState.playerHealth <= 0) {
+        return; // Combat is over
+    }
+    
+    let damage = 0;
+    let logMessage = '';
+    combatState.playerDefending = false;
+    
+    switch(action) {
+        case 'attack':
+            if (combatState.playerAmmo > 0) {
+                damage = Math.floor(Math.random() * 25) + 15; // 15-40 damage
+                combatState.enemyHealth -= damage;
+                combatState.playerAmmo--;
+                logMessage = `You fire your weapon! Enemy takes ${damage} damage.`;
+            } else {
+                logMessage = 'No ammo remaining! You attempt to use your rifle as a club for minimal damage.';
+                damage = Math.floor(Math.random() * 10) + 5;
+                combatState.enemyHealth -= damage;
+            }
+            break;
+            
+        case 'defend':
+            combatState.playerDefending = true;
+            logMessage = 'You take defensive position behind cover.';
+            break;
+            
+        case 'grenade':
+            if (combatState.playerGrenades > 0) {
+                damage = Math.floor(Math.random() * 40) + 30; // 30-70 damage
+                combatState.enemyHealth -= damage;
+                combatState.playerGrenades--;
+                logMessage = `Grenade explosion! Enemy takes ${damage} damage.`;
+            } else {
+                logMessage = 'No grenades remaining!';
+            }
+            break;
+            
+        case 'retreat':
+            logMessage = 'You attempt to retreat from combat...';
+            if (Math.random() < 0.7) { // 70% success rate
+                endCombat('retreat');
+                return;
+            } else {
+                logMessage += ' Retreat failed! Enemy blocks your escape.';
+            }
+            break;
+    }
+    
+    addToCombatLog(logMessage);
+    
+    // Check if enemy is defeated
+    if (combatState.enemyHealth <= 0) {
+        addToCombatLog('Enemy defeated! You are victorious!');
+        setTimeout(() => endCombat('victory'), 2000);
+        return;
+    }
+    
+    // Enemy turn
+    setTimeout(() => {
+        enemyTurn();
+    }, 1500);
+    
+    updateCombatDisplay();
+}
+
+function enemyTurn() {
+    if (combatState.enemyHealth <= 0) return;
+    
+    const actions = ['attack', 'heavy_attack', 'defend'];
+    const action = actions[Math.floor(Math.random() * actions.length)];
+    
+    let damage = 0;
+    let logMessage = '';
+    
+    switch(action) {
+        case 'attack':
+            damage = Math.floor(Math.random() * 20) + 10;
+            if (combatState.playerDefending) {
+                damage = Math.floor(damage * 0.5); // Reduced damage when defending
+                logMessage = `Enemy attacks but your defense reduces the damage! You take ${damage} damage.`;
+            } else {
+                logMessage = `Enemy fires at you! You take ${damage} damage.`;
+            }
+            combatState.playerHealth -= damage;
+            break;
+            
+        case 'heavy_attack':
+            damage = Math.floor(Math.random() * 30) + 20;
+            if (combatState.playerDefending) {
+                damage = Math.floor(damage * 0.7);
+                logMessage = `Enemy launches heavy assault! Your cover helps but you still take ${damage} damage.`;
+            } else {
+                logMessage = `Enemy heavy assault! You take ${damage} damage.`;
+            }
+            combatState.playerHealth -= damage;
+            break;
+            
+        case 'defend':
+            logMessage = 'Enemy takes defensive position.';
+            break;
+    }
+    
+    addToCombatLog(logMessage);
+    
+    // Check if player is defeated
+    if (combatState.playerHealth <= 0) {
+        addToCombatLog('You have been critically wounded!');
+        setTimeout(() => endCombat('defeat'), 2000);
+        return;
+    }
+    
+    combatState.round++;
+    updateCombatDisplay();
+}
+
+function addToCombatLog(message) {
+    const log = document.getElementById('combatLog');
+    if (log) {
+        const p = document.createElement('p');
+        p.textContent = `Round ${combatState.round}: ${message}`;
+        log.appendChild(p);
+        log.scrollTop = log.scrollHeight; // Auto-scroll combat log
+    }
+}
+
+function updateCombatDisplay() {
+    // Update health bars
+    document.getElementById('combatPlayerHealth').style.width = Math.max(0, combatState.playerHealth) + '%';
+    document.getElementById('combatPlayerHealthText').textContent = `${Math.max(0, combatState.playerHealth)}/100`;
+    
+    document.getElementById('combatEnemyHealth').style.width = Math.max(0, combatState.enemyHealth) + '%';
+    document.getElementById('combatEnemyHealthText').textContent = `${Math.max(0, combatState.enemyHealth)}/100`;
+    
+    // Update resources
+    document.getElementById('combatAmmo').textContent = combatState.playerAmmo;
+    document.getElementById('combatGrenades').textContent = combatState.playerGrenades;
+    document.getElementById('combatMedkits').textContent = combatState.playerMedkits;
+    
+    // Update health bar colors
+    const playerHealthBar = document.getElementById('combatPlayerHealth');
+    const enemyHealthBar = document.getElementById('combatEnemyHealth');
+    
+    updateHealthBarColor(playerHealthBar, combatState.playerHealth);
+    updateHealthBarColor(enemyHealthBar, combatState.enemyHealth);
+}
+
+function updateHealthBarColor(healthBar, health) {
+    healthBar.className = 'health-fill';
+    if (health > 70) {
+        healthBar.classList.add('health-good');
+    } else if (health > 30) {
+        healthBar.classList.add('health-warning');
+    } else {
+        healthBar.classList.add('health-danger');
+    }
+}
+
+function endCombat(outcome) {
+    // Send combat results to server
+    fetch('/combat_result', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            outcome: outcome,
+            playerHealth: combatState.playerHealth,
+            playerAmmo: combatState.playerAmmo,
+            playerGrenades: combatState.playerGrenades,
+            enemyHealth: combatState.enemyHealth,
+            rounds: combatState.round
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, outcome === 'victory' ? 'success' : 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Combat result error:', error);
+    });
+    
+    // Close combat modal
+    setTimeout(() => {
+        document.getElementById('combatModal').style.display = 'none';
+        
+        // Refresh page to update game state
+        if (outcome !== 'defeat') {
+            location.reload();
+        } else {
+            // Handle defeat - possibly redirect to game over
+            setTimeout(() => {
+                window.location.href = '/game_over';
+            }, 2000);
+        }
+    }, 3000);
 }
 
 // Use item function
