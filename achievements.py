@@ -4,7 +4,8 @@ Tracks player progress and unlocks historical trivia facts
 """
 
 import random
-from typing import Dict, List, Any
+from typing 
+import Dict, List, Any
 
 # Historical War Trivia Database
 HISTORICAL_TRIVIA = {
