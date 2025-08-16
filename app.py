@@ -1437,16 +1437,18 @@ def get_campaign():
 
 def start_dday_if_needed():
     camp = get_campaign()
-    if camp["current_index"] == -1:''    33dday = {
+    if camp["current_index"] == -1:
+        dday = {
             "code": "d_day",
             "name": "Operation Neptune (D-Day)",
             "difficulty": "Hard",
             "desc": "Land on Omaha Beach, breach the defenses, and secure exits for the push inland."
-        }#      #["missions"] = [dday]
-       session["campaign"] = camp
+        }
+        camp["missions"] = [dday]
+        session["campaign"] = camp
 
 
-def generate_next_mission_from_a):
+def generate_next_mission_from_ai():
     camp = get_campaign()
     roster = session.get("squad", [])
     summary = camp.get("summary", "")
