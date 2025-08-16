@@ -716,6 +716,10 @@ def mission_menu():
     squad = session.get("squad", [])
     dead_squad = session.get("dead_squad_members", [])
     
+    # Calculate achievements count for template
+    player_stats = session.get("player_stats", initialize_player_stats())
+    achievements_count = len(player_stats.get("achievements_unlocked", []))
+    
     return render_template("missions.html", 
                          mission=current_mission,
                          mission_number=current_mission_num + 1,
@@ -723,7 +727,8 @@ def mission_menu():
                          dead_squad=dead_squad,
                          player=session.get("player"),
                          score=session.get("score", 0),
-                         campaign_date=campaign.get("campaign_date"))
+                         campaign_date=campaign.get("campaign_date"),
+                         achievements_count=achievements_count)
 
 @app.route("/start_mission", methods=["POST"])
 def start_mission():
