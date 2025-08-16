@@ -41,44 +41,6 @@ def get_state():
 
 @app.route("/")
 def index():
-    g = get_state()
-    # Check if player already exists
-    if g["player"]["name"] != "Johnson":  # Default name means not customized
-        return redirect(url_for("mission_menu"))
-    
-    # Show character creation
-    ranks = ["Private", "Corporal", "Sergeant", "Lieutenant", "Captain"]
-    classes = ["Infantry", "Medic", "Engineer", "Sniper", "Support"]
-    weapons = ["M1 Garand", "Thompson SMG", "BAR", "Springfield", "M1 Carbine"]
-    
-    return render_template("index.html", 
-                         ranks=ranks, 
-                         classes=classes, 
-                         weapons=weapons,
-                         achievements_count=len(g["achievements"]))
-
-@app.route("/create_character", methods=["POST"])
-def create_character():
-    g = get_state()
-    
-    # Get form data
-    name = request.form.get("name", "Soldier").strip()[:20]
-    rank = request.form.get("rank", "Private")
-    char_class = request.form.get("char_class", "Infantry")
-    weapon = request.form.get("weapon", "M1 Garand")
-    
-    # Update player
-    g["player"].update({
-        "name": name,
-        "rank": rank,
-        "class": char_class,
-        "weapon": weapon,
-        "health": 100,
-        "max_health": 100,
-        "morale": 80
-    })
-    
-    session.modified = True
     return redirect(url_for("mission_menu"))
 
 @app.route("/missions")
