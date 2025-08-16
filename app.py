@@ -1421,3 +1421,77 @@ def ai_apply():
     try_git_commit(result["commit_message"])
     return jsonify({"result": result})
 
+
+
+# ----------------------------
+# Campaign helper functions and routes
+# ----------------------------
+
+from flask import session  # ensure session imported (already imported)
+
+def get_campaign():
+    if "campaign" not in session:
+        session["campaign"] = {"missions": [], "current_index": -1, "killed_squad": [], "summary": ""}
+    return session["campaign"]
+
+
+def start_dday_if_needed():
+    camp = get_campaign()
+    if camp["current_index"] == -1:''    33dday = {
+            "code": "d_day",
+            "name": "Operation Neptune (D-Day)",
+            "difficulty": "Hard",
+            "desc": "Land on Omaha Beach, breach the defenses, and secure exits for the push inland."
+        }#      #["missions"] = [dday]
+       session["campaign"] = camp
+
+
+def generate_next_mission_from_a):
+    camp = get_campaign()
+    roster = session.get("squad", [])
+    summary = camp.get("summary", "")
+    try:
+        import json
+        from ai_editor import client
+        prompt = f"""You are an AI DM generating the next WW2 mission for a text adventure.
+Context summary: {summary}
+Current squad: {', '.join(roster) if roster else 'none'}.
+Return a JSON object with keys code, name, difficulty, desc for the next mission, and no extra commentary."""
+        resp = client.responses.create(
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            input=[{"role": "system", "content": "Return JSON only."}, {"role": "user", "content": prompt}]
+        )
+        text = resp.output_text.strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        mission = json.loads(text[start:end+1])
+        for key in ("code", "name", "difficulty", "desc"):
+            mission.setdefault(key, f"UNKNOWN_{key}")
+        return mission
+    except Exception:
+        return {
+            "code": "next_op",
+            "name": "Next Operation",
+            "difficulty": "Medium",
+            "desc": "Proceed inland and secure a strategic village."
+        }
+
+
+@app.route("/campaign")
+def campaign_menu():
+    start_dday_if_needed()
+    camp = get_campaign()
+    player = session.get("player", {})
+    score = session.get("score", 0)
+    achievements_count = len(session.get("player_stats", {}).get("achievements_unlocked", []))
+    return render_template("missions.html", missions=camp["missions"], player=player, score=score, achievements_count=achievements_count)
+
+
+@app.route("/campaign/next")
+def campaign_next():
+    mission = generate_next_mission_from_ai()
+    camp = get_campaign()
+    camp["missions"].append(mission)
+    camp["current_index"] = len(camp["missions"]) - 1
+    session["campaign"] = camp
+    return redirect(url_for("campaign_menu"))

@@ -23,6 +23,7 @@ class GameDatabase:
         """Get database connection based on available database type."""
         if self.use_sqlite:
             import sqlite3
+
             return sqlite3.connect(self.db_path)
         else:
             return psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
