@@ -1073,6 +1073,7 @@ def calculate_mission_outcome(player: dict, resources: dict, turn_count: int, st
         outcome["special_notes"].append("completed with minimal casualties")
     elif health_percent > 0.5:
         outcome["rating"] = "Good"
+
         outcome["efficiency_bonus"] += 25
     
     # Turn efficiency (completing quickly)
@@ -1383,3 +1384,40 @@ def server_error(error):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+
+# ----------------------------
+# AI HELPER ROUTES
+# ----------------------------
+from ai_editor import plan_changes, apply_changes, try_git_commit
+
+@app.route("/admin/ai", methods=["GET"])
+def ai_console():
+    return render_template("ai_console.html")
+
+@app.route("/admin/ai/plan", methods=["POST"])
+def ai_plan():
+    data = request.get_json(force=True)
+    instruction = data.get("instruction", "").strip()
+    if not instruction:
+        return jsonify({"error": "Missing 'instruction'"}), 400
+    try:
+        plan = plan_changes(instruction)
+        preview = [c["path"] for c in plan.get("changes", [])]
+        return jsonify({"plan": plan, "preview": preview})
+
+    except Exception as e:
+
+        
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/admin/ai/apply", methods=["POST"])
+def ai_apply():
+    plan = request.get_json(force=True)
+    if not isinstance(plan, dict) or "changes" not in plan:
+        return jsonify({"error": "Expected plan JSON with 'changes'"}), 400
+    result = apply_changes(plan)
+    try_git_commit(result["commit_message"])
+    return jsonify({"result": result})
+
