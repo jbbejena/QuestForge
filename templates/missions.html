@@ -48,9 +48,33 @@
         </div>
         {% endif %}
 
+        <!-- Campaign Mode: Single Mission Display -->
+        <div class="campaign-header">
+            <h2><i class="fas fa-flag"></i> Campaign Mission #{{ mission_number }}</h2>
+            <p class="campaign-date">{{ campaign_date }}</p>
+            {% if mission.location %}
+            <p class="campaign-location"><i class="fas fa-map-marker-alt"></i> {{ mission.location }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Squad Status -->
+        {% if squad %}
+        <div class="squad-status">
+            <h3><i class="fas fa-users"></i> Your Squad</h3>
+            <div class="squad-members">
+                {% for member in squad %}
+                <span class="squad-member alive"><i class="fas fa-user-shield"></i> {{ member }}</span>
+                {% endfor %}
+                {% for member in dead_squad %}
+                <span class="squad-member dead"><i class="fas fa-cross"></i> {{ member }} (KIA)</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="missions-grid">
-            {% for mission in missions %}
-            <div class="mission-card" data-difficulty="{{ mission.difficulty }}">
+            <!-- Single Mission Card for Campaign -->
+            <div class="mission-card campaign-mission" data-difficulty="{{ mission.difficulty }}">
                 <div class="mission-header">
                     <h3>{{ mission.name }}</h3>
                     <div class="difficulty-badge difficulty-{{ mission.difficulty.lower() }}">
@@ -92,7 +116,6 @@
                     </button>
                 </form>
             </div>
-            {% endfor %}
         </div>
 
         <div class="navigation-buttons">

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Complete - WWII Text Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1 class="game-title">
+                {% if outcome == "success" %}
+                <i class="fas fa-trophy text-success"></i>
+                Mission Successful
+                {% else %}
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                Mission Failed
+                {% endif %}
+            </h1>
+            <p class="subtitle">{{ mission.name }}</p>
+        </header>
+
+        <!-- Mission Results -->
+        <div class="mission-results">
+            <div class="result-card {% if outcome == 'success' %}success{% else %}failure{% endif %}">
+                <div class="result-header">
+                    {% if outcome == "success" %}
+                    <h2><i class="fas fa-check-circle"></i> Objective Complete</h2>
+                    <p>The mission was successfully completed!</p>
+                    {% else %}
+                    <h2><i class="fas fa-times-circle"></i> Mission Failed</h2>
+                    <p>The objective could not be completed.</p>
+                    {% endif %}
+                </div>
+                
+                <div class="result-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-trophy"></i>
+                        <span>Score: {{ score }}</span>
+                    </div>
+                    {% if outcome == "success" %}
+                    <div class="stat-item">
+                        <i class="fas fa-plus"></i>
+                        <span>+100 Points</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Squad Status -->
+        <div class="squad-status">
+            <h3><i class="fas fa-users"></i> Squad Status</h3>
+            <div class="squad-members">
+                {% for member in squad %}
+                <span class="squad-member alive">
+                    <i class="fas fa-user-shield"></i> {{ member }}
+                </span>
+                {% endfor %}
+                
+                {% if dead_squad %}
+                <div class="casualties">
+                    <h4><i class="fas fa-cross"></i> Casualties</h4>
+                    {% for member in dead_squad %}
+                    <span class="squad-member dead">
+                        <i class="fas fa-cross"></i> {{ member }} (KIA)
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Player Status -->
+        {% if player %}
+        <div class="player-status">
+            <h3><i class="fas fa-user"></i> {{ player.rank }} {{ player.name }}</h3>
+            <div class="health-display">
+                <div class="progress-bar">
+                    <div class="progress-fill {% if player.health > 70 %}health-good{% elif player.health > 30 %}health-warning{% else %}health-danger{% endif %}" 
+                         style="width: {{ player.health }}%"></div>
+                    <span class="progress-text">{{ player.health }}/100 HP</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Navigation -->
+        <div class="navigation-buttons">
+            {% if outcome == "success" %}
+            <a href="{{ url_for('mission_menu') }}" class="btn btn-primary">
+                <i class="fas fa-forward"></i>
+                Next Mission
+            </a>
+            {% else %}
+            <a href="{{ url_for('mission_menu') }}" class="btn btn-warning">
+                <i class="fas fa-redo"></i>
+                Try Again
+            </a>
+            {% endif %}
+            
+            <a href="{{ url_for('base_camp') }}" class="btn btn-secondary">
+                <i class="fas fa-home"></i>
+                Return to Base
+            </a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

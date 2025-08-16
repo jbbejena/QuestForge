@@ -45,13 +45,32 @@ RANKS = ["Private", "Corporal", "Sergeant", "Lieutenant", "Captain"]
 CLASSES = ["Rifleman", "Medic", "Gunner", "Sniper", "Demolitions"]
 WEAPONS = ["Rifle", "SMG", "LMG", "Sniper Rifle", "Shotgun"]
 
+# Campaign starts with D-Day, subsequent missions are AI-generated
+INITIAL_MISSION = {
+    "name": "Operation Overlord - D-Day", 
+    "desc": "Storm the beaches of Normandy with your squad. The fate of Europe hangs in the balance.", 
+    "difficulty": "Hard",
+    "location": "Omaha Beach, Normandy",
+    "date": "June 6, 1944",
+    "is_campaign_start": True
+}
+
+# Keep original missions for fallback
 MISSIONS = [
-    {"name": "Sabotage the Bridge", "desc": "Destroy the enemy bridge to cut off reinforcements.", "difficulty": "Medium"},
-    {"name": "Rescue POWs", "desc": "Free prisoners from a heavily guarded camp.", "difficulty": "Hard"},
-    {"name": "Hold the Village", "desc": "Defend the village from waves of enemies.", "difficulty": "Easy"},
-    {"name": "Intel Extraction", "desc": "Infiltrate enemy HQ and steal classified documents.", "difficulty": "Hard"},
-    {"name": "Supply Drop", "desc": "Secure and defend a vital supply drop zone.", "difficulty": "Medium"},
-    {"name": "Radio Tower", "desc": "Capture and hold the enemy communications tower.", "difficulty": "Easy"}
+    INITIAL_MISSION,  # D-Day is always first
+]
+
+# Mission success/failure keywords for detection
+MISSION_SUCCESS_KEYWORDS = [
+    "mission accomplished", "objective complete", "mission successful", "victory",
+    "objective secured", "target destroyed", "successfully completed", "mission complete",
+    "beach secured", "objective achieved", "successfully infiltrated", "enemy eliminated"
+]
+
+MISSION_FAILURE_KEYWORDS = [
+    "mission failed", "retreat", "objective lost", "defeated", "overwhelmed",
+    "forced to withdraw", "mission aborted", "casualty rate too high", "squad eliminated",
+    "captured", "surrounded", "no survivors"
 ]
 
 # Combat keywords for detecting battle scenarios
@@ -143,6 +162,94 @@ def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
         summary += "\n\n[Mission continues with tactical precision...]"
     
     return summary
+
+def generate_next_mission():
+    """Generate the next mission in the campaign based on previous outcomes."""
+    campaign = session.get("campaign", {})
+    completed = campaign.get("completed_missions", [])
+    current_date = campaign.get("campaign_date", "June 6, 1944")
+    
+    # Build context from previous missions
+    context = f"Previous missions completed: {len(completed)}. Current date: {current_date}."
+    if completed:
+        last_mission = completed[-1]
+        context += f" Last mission: {last_mission.get('name', 'Unknown')} - {last_mission.get('outcome', 'completed')}."
+    
+    system_msg = (
+        "You are a WWII campaign mission generator. Create the next logical mission "
+        "following D-Day and previous missions. Generate realistic WWII operations "
+        "that progress the Allied advance through Europe. Consider historical accuracy, "
+        "tactical progression, and narrative continuity."
+    )
+    
+    user_prompt = (
+        f"{context}\n\n"
+        "Generate the next mission with this EXACT format:\n"
+        "NAME: [Mission name]\n"
+        "LOCATION: [Specific location]\n"
+        "DATE: [Date in format Month Day, Year]\n"
+        "OBJECTIVE: [Clear military objective in one sentence]\n"
+        "DIFFICULTY: [Easy/Medium/Hard]\n"
+        "DESCRIPTION: [2-3 sentence briefing]"
+    )
+    
+    response = ai_chat(system_msg, user_prompt, temperature=0.7, max_tokens=200)
+    
+    # Parse the response
+    mission = {
+        "name": "Liberation Mission",
+        "desc": "Continue the Allied advance through France.",
+        "difficulty": "Medium",
+        "location": "Northern France",
+        "date": "June 7, 1944"
+    }
+    
+    try:
+        lines = response.split('\n')
+        for line in lines:
+            if line.startswith("NAME:"):
+                mission["name"] = line.replace("NAME:", "").strip()
+            elif line.startswith("LOCATION:"):
+                mission["location"] = line.replace("LOCATION:", "").strip()
+            elif line.startswith("DATE:"):
+                mission["date"] = line.replace("DATE:", "").strip()
+                campaign["campaign_date"] = mission["date"]
+            elif line.startswith("OBJECTIVE:"):
+                mission["objective"] = line.replace("OBJECTIVE:", "").strip()
+            elif line.startswith("DIFFICULTY:"):
+                mission["difficulty"] = line.replace("DIFFICULTY:", "").strip()
+            elif line.startswith("DESCRIPTION:"):
+                mission["desc"] = line.replace("DESCRIPTION:", "").strip()
+    except:
+        pass  # Use defaults if parsing fails
+    
+    session["campaign"] = campaign
+    return mission
+
+def detect_mission_outcome(story_content):
+    """Detect if a mission succeeded or failed based on story content."""
+    story_lower = story_content.lower()
+    
+    # Check for explicit success indicators
+    for keyword in MISSION_SUCCESS_KEYWORDS:
+        if keyword in story_lower:
+            return "success"
+    
+    # Check for failure indicators
+    for keyword in MISSION_FAILURE_KEYWORDS:
+        if keyword in story_lower:
+            return "failure"
+    
+    # Check turn count - if mission goes on too long, check for resolution
+    turn_count = session.get("turn_count", 0)
+    if turn_count >= 7:
+        # Look for resolution indicators
+        if any(word in story_lower for word in ["secured", "completed", "achieved", "accomplished"]):
+            return "success"
+        elif any(word in story_lower for word in ["failed", "lost", "retreat", "withdrawn"]):
+            return "failure"
+    
+    return None  # Mission still in progress
 
 def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tokens: int = 700) -> str:
     """
@@ -574,41 +681,68 @@ def create_character():
 
 @app.route("/missions")
 def mission_menu():
-    """Display available missions."""
-    completed = set(session.get("completed", []))
-    available = [m for m in MISSIONS if m["name"] not in completed]
+    """Display campaign missions - starts with D-Day, then AI generates next missions."""
+    if "player" not in session:
+        return redirect(url_for("create_character"))
     
-    # Campaign progression system
-    missions_completed_count = len(completed)
+    # Initialize campaign if not exists
+    if "campaign" not in session:
+        session["campaign"] = {
+            "current_mission": 0,
+            "generated_missions": [],
+            "completed_missions": [],
+            "campaign_date": "June 6, 1944"
+        }
     
-    if not available:
-        # Unlock advanced campaign missions
-        advanced_missions = [
-            {"name": "Operation Overlord", "desc": "Lead the D-Day assault on Normandy beach.", "difficulty": "Extreme"},
-            {"name": "Battle of the Bulge", "desc": "Hold the line against the German counteroffensive.", "difficulty": "Extreme"},
-            {"name": "Liberation of Paris", "desc": "Spearhead the liberation of the French capital.", "difficulty": "Hard"}
-        ]
-        available = MISSIONS + advanced_missions
+    campaign = session["campaign"]
+    current_mission_num = campaign["current_mission"]
+    
+    # Get current mission
+    if current_mission_num == 0:
+        # First mission is always D-Day
+        current_mission = INITIAL_MISSION
     else:
-        # Lock advanced missions until player completes basic ones
-        if missions_completed_count < 3:
-            available = [m for m in available if m.get("difficulty") != "Extreme"]
+        # Get AI-generated mission
+        generated = campaign.get("generated_missions", [])
+        if current_mission_num - 1 < len(generated):
+            current_mission = generated[current_mission_num - 1]
+        else:
+            # Generate next mission if not available
+            current_mission = generate_next_mission()
+            campaign["generated_missions"].append(current_mission)
+            session["campaign"] = campaign
     
-    # Get achievements count for template
-    player_stats = session.get("player_stats", {})
-    achievements_count = len(player_stats.get("achievements_unlocked", []))
+    # Get persistent squad state
+    squad = session.get("squad", [])
+    dead_squad = session.get("dead_squad_members", [])
     
     return render_template("missions.html", 
-                         missions=available, 
+                         mission=current_mission,
+                         mission_number=current_mission_num + 1,
+                         squad=squad,
+                         dead_squad=dead_squad,
                          player=session.get("player"),
                          score=session.get("score", 0),
-                         achievements_count=achievements_count)
+                         campaign_date=campaign.get("campaign_date"))
 
 @app.route("/start_mission", methods=["POST"])
 def start_mission():
     """Initialize selected mission."""
     chosen_mission = request.form.get("mission")
-    mission = next((m for m in MISSIONS if m["name"] == chosen_mission), MISSIONS[0])
+    
+    # Get mission from campaign system
+    campaign = session.get("campaign", {})
+    current_mission_num = campaign.get("current_mission", 0)
+    
+    if current_mission_num == 0:
+        mission = INITIAL_MISSION
+    else:
+        generated = campaign.get("generated_missions", [])
+        if current_mission_num - 1 < len(generated):
+            mission = generated[current_mission_num - 1]
+        else:
+            mission = INITIAL_MISSION
+    
     session["mission"] = mission
     
     # Initialize turn tracking and story progression
@@ -748,6 +882,7 @@ def make_choice():
             return complete_mission(story)
         
         # Auto-complete after 6 turns to prevent infinite games
+        mission = session.get("mission", {})
         if turn_count >= 6:
             mission_name = mission.get("name", "").lower()
             if "sabotage" in mission_name:
@@ -872,6 +1007,34 @@ def make_choice():
         
         # Update the full story for next iteration - this is critical for choice parsing
         new_full_story = base_story + choice_result
+        
+        # Check for mission outcome after story update
+        mission_outcome = detect_mission_outcome(new_full_story)
+        if mission_outcome:
+            session["mission_outcome"] = mission_outcome
+            
+            # Update squad casualties based on story content
+            if any(word in new_content.lower() for word in ["casualty", "killed", "died", "fallen", "lost"]):
+                squad = session.get("squad", [])
+                if squad and random.random() < 0.3:  # 30% chance of squad casualty
+                    casualty = random.choice(squad)
+                    squad.remove(casualty)
+                    session["squad"] = squad
+                    
+                    dead_members = session.get("dead_squad_members", [])
+                    dead_members.append(casualty)
+                    session["dead_squad_members"] = dead_members
+                    
+                    # Add to story
+                    new_full_story += f"\n\n[Squad member {casualty} has fallen in combat.]"
+            
+            # Mission complete - redirect to base camp
+            if mission_outcome == "success":
+                session["story"] = new_full_story + "\n\nMISSION SUCCESSFUL! Returning to base..."
+                return redirect(url_for("mission_complete"))
+            elif mission_outcome == "failure":
+                session["story"] = new_full_story + "\n\nMISSION FAILED. Forced to retreat..."
+                return redirect(url_for("mission_complete"))
         
         # Intelligent story management instead of aggressive truncation
         if len(new_full_story) > 3000:  # Higher limit before summarization
@@ -1159,6 +1322,51 @@ def mission_debrief():
                          resources=resources,
                          squad=squad,
                          achievements_count=achievements_count)
+
+@app.route("/mission_complete")
+def mission_complete():
+    """Handle mission completion and transition to next mission."""
+    if "mission" not in session:
+        return redirect(url_for("mission_menu"))
+    
+    mission = session.get("mission", {})
+    mission_outcome = session.get("mission_outcome", "completed")
+    campaign = session.get("campaign", {})
+    
+    # Record mission in campaign history
+    completed_mission = {
+        "name": mission.get("name"),
+        "outcome": mission_outcome,
+        "casualties": session.get("dead_squad_members", [])[-1:],  # Last casualty if any
+        "turn_count": session.get("turn_count", 0)
+    }
+    
+    campaign.setdefault("completed_missions", []).append(completed_mission)
+    
+    # Advance campaign if successful
+    if mission_outcome == "success":
+        campaign["current_mission"] = campaign.get("current_mission", 0) + 1
+        session["score"] = session.get("score", 0) + 100
+        session["missions_completed"] = session.get("missions_completed", 0) + 1
+    
+    session["campaign"] = campaign
+    
+    # Clean up mission-specific data but keep persistent data
+    session.pop("story", None)
+    session.pop("base_story", None)
+    session.pop("new_content", None)
+    session.pop("story_history", None)
+    session.pop("turn_count", None)
+    session.pop("mission_outcome", None)
+    session.pop("mission_phase", None)
+    
+    return render_template("mission_complete.html",
+                         mission=mission,
+                         outcome=mission_outcome,
+                         player=session.get("player"),
+                         squad=session.get("squad", []),
+                         dead_squad=session.get("dead_squad_members", []),
+                         score=session.get("score", 0))
 
 @app.route("/base")
 def base_camp():
