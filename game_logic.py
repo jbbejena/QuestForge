@@ -16,75 +16,275 @@ def get_session_id() -> str:
         session["session_id"] = str(uuid.uuid4())
     return session["session_id"]
 
+def generate_combat_scenario(player: Dict[str, Any], mission: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate a detailed combat scenario with enemies and environment."""
+    difficulty = mission.get("difficulty", "medium").lower()
+    mission_type = mission.get("name", "").lower()
+    
+    # Environment based on mission type
+    environments = {
+        "village": "urban",
+        "bridge": "open_field", 
+        "bunker": "bunker",
+        "forest": "forest",
+        "beach": "open_field"
+    }
+    
+    environment = "forest"  # default
+    for key, env in environments.items():
+        if key in mission_type:
+            environment = env
+            break
+    
+    # Enemy types and counts based on difficulty
+    enemy_configs = {
+        "easy": {
+            "count": random.randint(2, 3),
+            "types": ["soldier", "soldier", "rifleman"]
+        },
+        "medium": {
+            "count": random.randint(3, 4), 
+            "types": ["soldier", "soldier", "gunner", "officer"]
+        },
+        "hard": {
+            "count": random.randint(4, 6),
+            "types": ["soldier", "gunner", "officer", "sniper", "heavy"]
+        }
+    }
+    
+    config = enemy_configs.get(difficulty, enemy_configs["medium"])
+    enemy_count = config["count"]
+    
+    # Generate enemies
+    enemies = []
+    enemy_types = config["types"]
+    
+    for i in range(enemy_count):
+        enemy_type = random.choice(enemy_types)
+        enemy = create_enemy(enemy_type, environment)
+        enemy["id"] = f"enemy_{i+1}"
+        enemies.append(enemy)
+    
+    return {
+        "environment": environment,
+        "enemies": enemies,
+        "player_advantages": get_player_advantages(player, environment),
+        "environmental_effects": get_environmental_effects(environment)
+    }
+
+def create_enemy(enemy_type: str, environment: str) -> Dict[str, Any]:
+    """Create an enemy with type-specific stats."""
+    base_enemies = {
+        "soldier": {
+            "type": "German Soldier",
+            "health": random.randint(60, 80),
+            "accuracy": 0.65,
+            "damage": random.randint(15, 25),
+            "armor": 0,
+            "special": None
+        },
+        "rifleman": {
+            "type": "German Rifleman", 
+            "health": random.randint(70, 90),
+            "accuracy": 0.75,
+            "damage": random.randint(20, 30),
+            "armor": 0,
+            "special": "aimed_shot"
+        },
+        "gunner": {
+            "type": "Machine Gunner",
+            "health": random.randint(80, 100),
+            "accuracy": 0.60,
+            "damage": random.randint(25, 35),
+            "armor": 5,
+            "special": "suppressive_fire"
+        },
+        "sniper": {
+            "type": "German Sniper",
+            "health": random.randint(50, 70),
+            "accuracy": 0.90,
+            "damage": random.randint(35, 50),
+            "armor": 0,
+            "special": "precision_shot"
+        },
+        "officer": {
+            "type": "German Officer",
+            "health": random.randint(70, 90),
+            "accuracy": 0.70,
+            "damage": random.randint(20, 30),
+            "armor": 5,
+            "special": "rally_troops"
+        },
+        "heavy": {
+            "type": "Heavy Gunner",
+            "health": random.randint(100, 120),
+            "accuracy": 0.55,
+            "damage": random.randint(30, 45),
+            "armor": 10,
+            "special": "heavy_suppression"
+        }
+    }
+    
+    enemy = base_enemies.get(enemy_type, base_enemies["soldier"]).copy()
+    enemy["inCover"] = random.choice([True, False])
+    enemy["suppressed"] = False
+    enemy["position"] = get_enemy_position(environment)
+    
+    return enemy
+
+def get_enemy_position(environment: str) -> str:
+    """Get tactical position description based on environment."""
+    positions = {
+        "urban": ["behind rubble", "in a doorway", "around a corner", "on a rooftop"],
+        "forest": ["behind trees", "in thick brush", "on elevated ground", "in a clearing"],
+        "bunker": ["behind concrete", "in a fortified position", "near gun ports", "in trenches"],
+        "open_field": ["in a crater", "behind low cover", "in tall grass", "on a small hill"]
+    }
+    return random.choice(positions.get(environment, positions["open_field"]))
+
+def get_player_advantages(player: Dict[str, Any], environment: str) -> List[str]:
+    """Get player advantages based on class and environment."""
+    advantages = []
+    player_class = player.get("class", "rifleman").lower()
+    
+    class_advantages = {
+        "sniper": {
+            "forest": "Camouflage training gives stealth bonus",
+            "open_field": "Long range training provides accuracy bonus"
+        },
+        "demolitions": {
+            "bunker": "Explosive expertise effective against fortifications",
+            "urban": "Urban warfare training provides tactical advantage"
+        },
+        "medic": {
+            "any": "Medical training allows squad healing during combat"
+        },
+        "gunner": {
+            "open_field": "Machine gun training effective in open terrain",
+            "bunker": "Suppressive fire training effective in confined spaces"
+        }
+    }
+    
+    if player_class in class_advantages:
+        class_advs = class_advantages[player_class]
+        if environment in class_advs:
+            advantages.append(class_advs[environment])
+        elif "any" in class_advs:
+            advantages.append(class_advs["any"])
+    
+    return advantages
+
+def get_environmental_effects(environment: str) -> Dict[str, str]:
+    """Get environmental effects that impact combat."""
+    effects = {
+        "urban": {
+            "cover": "Abundant hard cover available",
+            "movement": "Close quarters limit long-range engagements",
+            "special": "Grenades more effective due to confined spaces"
+        },
+        "forest": {
+            "cover": "Natural camouflage and tree cover", 
+            "movement": "Dense vegetation limits visibility",
+            "special": "Flanking maneuvers easier to execute"
+        },
+        "bunker": {
+            "cover": "Heavy fortified positions",
+            "movement": "Restricted movement in tunnels",
+            "special": "Explosives highly effective against structures"
+        },
+        "open_field": {
+            "cover": "Limited natural cover available",
+            "movement": "Clear fields of fire for all units",
+            "special": "Long-range weapons have maximum effectiveness"
+        }
+    }
+    return effects.get(environment, effects["open_field"])
+
+def generate_squad_members(player: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate squad members based on mission and player rank."""
+    rank = player.get("rank", "private").lower()
+    
+    # Squad size based on rank
+    squad_sizes = {
+        "private": 2,
+        "corporal": 3, 
+        "sergeant": 4,
+        "lieutenant": 5,
+        "captain": 6
+    }
+    
+    squad_size = squad_sizes.get(rank, 2)
+    
+    # Possible squad member types
+    member_types = [
+        {"name": "Rifleman", "speciality": "assault", "weapon": "M1 Garand"},
+        {"name": "Gunner", "speciality": "support", "weapon": "BAR"},
+        {"name": "Medic", "speciality": "medical", "weapon": "Carbine"},
+        {"name": "Demolitions", "speciality": "explosives", "weapon": "SMG"},
+        {"name": "Radioman", "speciality": "communications", "weapon": "Carbine"},
+        {"name": "Scout", "speciality": "reconnaissance", "weapon": "SMG"}
+    ]
+    
+    squad = []
+    for i in range(squad_size):
+        member_type = random.choice(member_types)
+        member = {
+            "id": f"squad_{i+1}",
+            "name": f"Pvt. {chr(65+i)}", # A, B, C, etc.
+            "speciality": member_type["speciality"],
+            "weapon": member_type["weapon"],
+            "health": random.randint(80, 100),
+            "max_health": 100,
+            "ammo": random.randint(20, 30),
+            "inCover": False,
+            "suppressed": False,
+            "orders": "follow",  # follow, attack, defend, flank
+            "experience": random.randint(1, 3)  # affects performance
+        }
+        squad.append(member)
+    
+    return squad
+
 def resolve_combat_encounter(player: Dict[str, Any], chosen_action: str, mission: Dict[str, Any]) -> Dict[str, Any]:
-    """Resolve a combat encounter with tactical outcomes."""
+    """Resolve a simple combat encounter - legacy function for compatibility."""
+    # This is now a simplified version for backward compatibility
+    # The main combat system uses the new generate_combat_scenario function
+    
     player_class = player.get("class", "rifleman").lower()
     player_weapon = player.get("weapon", "rifle").lower()
     player_health = player.get("health", 100)
     
-    # Base combat effectiveness
-    combat_effectiveness = 50
+    # Generate a quick combat scenario
+    scenario = generate_combat_scenario(player, mission)
     
-    # Class bonuses
-    class_bonuses = {
-        "rifleman": {"accuracy": 10, "damage": 5},
-        "sniper": {"accuracy": 20, "damage": 15, "stealth": 10},
-        "gunner": {"suppression": 15, "damage": 10},
-        "medic": {"survival": 20, "healing": 15},
-        "demolitions": {"explosive": 25, "breach": 15}
-    }
+    # Simple resolution for story integration
+    victory_chance = 70  # Base chance
     
-    if player_class in class_bonuses:
-        bonuses = class_bonuses[player_class]
-        combat_effectiveness += sum(bonuses.values()) // 2
+    # Apply modifiers
+    if player_health < 50:
+        victory_chance -= 20
+    if player_class == "sniper":
+        victory_chance += 10
+    if "careful" in chosen_action.lower():
+        victory_chance += 15
     
-    # Weapon effectiveness
-    weapon_bonuses = {
-        "rifle": 10,
-        "smg": 15,
-        "lmg": 20,
-        "sniper rifle": 25,
-        "shotgun": 12
-    }
-    combat_effectiveness += weapon_bonuses.get(player_weapon, 5)
-    
-    # Health affects performance
-    health_multiplier = player_health / 100
-    combat_effectiveness *= health_multiplier
-    
-    # Action analysis
-    action_lower = chosen_action.lower()
-    if any(word in action_lower for word in ["careful", "cautious", "plan"]):
-        combat_effectiveness += 15
-    elif any(word in action_lower for word in ["aggressive", "charge", "attack"]):
-        combat_effectiveness += 10
-    elif any(word in action_lower for word in ["retreat", "fall back", "withdraw"]):
-        combat_effectiveness -= 20
-    
-    # Mission difficulty modifier
-    difficulty = mission.get("difficulty", "medium").lower()
-    difficulty_modifiers = {"easy": 20, "medium": 0, "hard": -15}
-    combat_effectiveness += difficulty_modifiers.get(difficulty, 0)
-    
-    # Determine outcome
-    victory_chance = max(10, min(90, combat_effectiveness))
     victory = random.randint(1, 100) <= victory_chance
     
     if victory:
         damage_taken = random.randint(0, 15)
         ammo_used = random.randint(1, 3)
-        description = f"Victory! Your {player_class} training and {player_weapon} proved effective."
+        description = f"Victory! Your tactical approach proved effective against {len(scenario['enemies'])} enemies."
     else:
-        damage_taken = random.randint(10, 30)
+        damage_taken = random.randint(10, 25)
         ammo_used = random.randint(2, 5)
-        description = f"The engagement was costly. You took significant casualties."
+        description = f"The engagement was difficult. Enemy forces inflicted casualties."
     
     return {
         "victory": victory,
         "damage": damage_taken,
         "ammo_used": ammo_used,
         "description": description,
-        "effectiveness": combat_effectiveness
+        "scenario": scenario
     }
 
 def detect_mission_outcome(story_content: str) -> Optional[str]:

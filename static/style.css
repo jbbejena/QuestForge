@@ -1495,7 +1495,250 @@ input[type="text"]:focus, select:focus {
     }
 }
 
-/* Combat System Styles */
+/* Enhanced Combat System Styles */
+.enhanced-squad-commands {
+    background: rgba(44, 85, 48, 0.95);
+    border: 2px solid #8B4513;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.enhanced-squad-commands h4 {
+    color: #FFD700;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 1.2em;
+}
+
+.command-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.squad-order-btn {
+    background: linear-gradient(145deg, #4A4A4A, #2D2D2D);
+    color: #FFD700;
+    border: 2px solid #8B4513;
+    padding: 12px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-height: 70px;
+}
+
+.squad-order-btn:hover {
+    background: linear-gradient(145deg, #5A5A5A, #3D3D3D);
+    border-color: #FFD700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.squad-order-btn.selected {
+    background: linear-gradient(145deg, #8B4513, #654321);
+    border-color: #FFD700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+}
+
+.squad-order-btn small {
+    display: block;
+    color: #CCC;
+    font-size: 0.75em;
+    margin-top: 4px;
+}
+
+.orders-status {
+    text-align: center;
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+}
+
+.orders-status p {
+    margin: 0;
+    color: #FFD700;
+    font-weight: bold;
+}
+
+.confirm-orders-btn {
+    width: 100%;
+    background: linear-gradient(145deg, #8B4513, #654321);
+    color: #FFD700;
+    border: 2px solid #FFD700;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.confirm-orders-btn:hover {
+    background: linear-gradient(145deg, #A0522D, #8B4513);
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.target-selection {
+    background: rgba(44, 85, 48, 0.9);
+    border: 2px solid #8B4513;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.target-selection h4 {
+    color: #FFD700;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.target-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.target-btn {
+    background: linear-gradient(145deg, #4A4A4A, #2D2D2D);
+    color: #FFF;
+    border: 2px solid #666;
+    padding: 10px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-height: 65px;
+}
+
+.target-btn:hover {
+    border-color: #FFD700;
+    background: linear-gradient(145deg, #5A5A5A, #3D3D3D);
+    transform: translateY(-1px);
+}
+
+.target-btn.selected {
+    border-color: #FF4444;
+    background: linear-gradient(145deg, #8B0000, #654321);
+    box-shadow: 0 0 12px rgba(255, 68, 68, 0.5);
+}
+
+.target-btn small {
+    display: block;
+    font-size: 0.75em;
+    margin-top: 3px;
+    opacity: 0.9;
+}
+
+.targeting-info {
+    background: rgba(0,0,0,0.4);
+    padding: 10px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.targeting-info p {
+    margin: 0;
+    font-size: 0.9em;
+    color: #CCC;
+}
+
+.player-advantages {
+    background: rgba(0, 100, 0, 0.2);
+    border: 1px solid #228B22;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 10px 0;
+}
+
+.player-advantages h4 {
+    color: #90EE90;
+    margin: 0 0 8px 0;
+    font-size: 1em;
+}
+
+.player-advantages ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.player-advantages li {
+    color: #CCC;
+    font-size: 0.85em;
+    padding: 3px 0;
+    border-left: 3px solid #90EE90;
+    padding-left: 8px;
+    margin: 3px 0;
+}
+
+.squad-member {
+    background: rgba(0, 0, 139, 0.2);
+    border: 1px solid #4169E1;
+    border-radius: 6px;
+    padding: 10px;
+    margin: 8px 0;
+}
+
+.member-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.member-name {
+    font-weight: bold;
+    color: #87CEEB;
+}
+
+.member-weapon {
+    font-size: 0.8em;
+    color: #CCC;
+}
+
+.member-health {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.member-health .health-bar {
+    flex: 1;
+    height: 12px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.member-health .health-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #32CD32, #228B22);
+    transition: width 0.3s ease;
+}
+
+.member-health .health-text {
+    font-size: 0.75em;
+    color: #CCC;
+    min-width: 50px;
+}
+
+.member-status {
+    font-size: 0.75em;
+    color: #CCC;
+    display: flex;
+    gap: 8px;
+}
+
 .combat-modal {
     display: none;
     position: fixed;

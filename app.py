@@ -1421,17 +1421,31 @@ def get_combat_stats():
     player = session.get("player", {})
     resources = session.get("resources", {})
     mission = session.get("mission", {})
+    
+    # Generate or get existing squad
     squad = session.get("squad", [])
+    if not squad:
+        from game_logic import generate_squad_members
+        squad = generate_squad_members(player)
+        session["squad"] = squad
+    
+    # Generate combat scenario
+    from game_logic import generate_combat_scenario
+    scenario = generate_combat_scenario(player, mission)
     
     return jsonify({
         "health": player.get("health", 100),
-        "ammo": resources.get("ammo", 12),
+        "max_health": player.get("max_health", 100),
+        "ammo": resources.get("ammo", 30),
         "grenades": resources.get("grenade", 2),
         "medkits": resources.get("medkit", 2),
         "squad": squad,
         "difficulty": mission.get("difficulty", "Medium"),
         "mission_type": mission.get("name", "patrol"),
-        "enemy_health": 100
+        "scenario": scenario,
+        "player_class": player.get("class", "Rifleman"),
+        "player_weapon": player.get("weapon", "Rifle"),
+        "player_rank": player.get("rank", "Private")
     })
 
 @app.route("/integrate_combat_result", methods=["POST"])
