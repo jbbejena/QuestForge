@@ -126,6 +126,8 @@ def create_enemy(enemy_type: str, environment: str) -> Dict[str, Any]:
     }
     
     enemy = base_enemies.get(enemy_type, base_enemies["soldier"]).copy()
+    enemy["maxHealth"] = enemy["health"]  # Store max health for health bars
+    enemy["max_health"] = enemy["health"]  # Backup property name
     enemy["inCover"] = random.choice([True, False])
     enemy["suppressed"] = False
     enemy["position"] = get_enemy_position(environment)

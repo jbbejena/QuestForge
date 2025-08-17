@@ -2169,3 +2169,145 @@ input[type="text"]:focus, select:focus {
     width: 0%;
     transition: width 1s;
 }
+
+/* Enhanced Health Display System */
+.health-bar {
+    position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius);
+    height: 24px;
+    margin: var(--spacing-xs) 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.health-fill.injured {
+    background: linear-gradient(90deg, #FF9800, #FFC107) !important;
+}
+
+.health-fill.critical {
+    background: linear-gradient(90deg, #F44336, #FF5722) !important;
+    animation: pulse 2s infinite;
+}
+
+.health-fill.wounded {
+    background: linear-gradient(90deg, #9E9E9E, #607D8B) !important;
+}
+
+.health-fill.eliminated {
+    background: linear-gradient(90deg, #424242, #616161) !important;
+}
+
+.health-fill.enemy.injured {
+    background: linear-gradient(90deg, #DD6B20, #ED8936) !important;
+}
+
+.health-fill.enemy.critical {
+    background: linear-gradient(90deg, #C53030, #9C2B2B) !important;
+    animation: pulse 1.5s infinite;
+}
+
+.health-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    z-index: 2;
+}
+
+/* Enhanced Unit Display */
+.unit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+}
+
+.unit-status {
+    display: flex;
+    gap: var(--spacing-xs);
+    align-items: center;
+    font-size: 12px;
+}
+
+.health-status {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: white;
+}
+
+.unit-info {
+    margin-top: var(--spacing-xs);
+    color: var(--color-text-muted);
+    font-size: 11px;
+}
+
+.squad-unit.critical, .enemy-unit.critical {
+    border-color: #F44336 !important;
+    box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
+}
+
+/* Turn Confirmation System */
+.turn-confirmation {
+    background: rgba(44, 62, 80, 0.95);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    text-align: center;
+}
+
+.selected-actions {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-btn {
+    background: linear-gradient(135deg, var(--color-success), #2E8B57);
+    color: white;
+    border: none;
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(46, 139, 87, 0.3);
+}
+
+.confirm-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2E8B57, var(--color-success));
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(46, 139, 87, 0.4);
+}
+
+.confirm-btn:disabled {
+    background: rgba(149, 165, 166, 0.5) !important;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* Button Selection States */
+.combat-btn.selected, .squad-btn.selected {
+    background: linear-gradient(135deg, var(--color-accent), #D4A574) !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(218, 165, 32, 0.4);
+    border-color: var(--color-accent) !important;
+}
+
+.combat-btn.selected:hover, .squad-btn.selected:hover {
+    transform: scale(1.05) translateY(-2px) !important;
+}

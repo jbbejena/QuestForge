@@ -239,20 +239,27 @@ function createCombatModal() {
             <div class="combat-controls">
                 <div class="combat-actions">
                     <h4>Your Actions</h4>
-                    <button onclick="performCombatAction('targeted_fire')" class="combat-btn attack">🎯 Targeted Fire</button>
-                    <button onclick="performCombatAction('suppressing_fire')" class="combat-btn suppress">🔫 Suppressing Fire</button>
-                    <button onclick="performCombatAction('take_cover')" class="combat-btn defend">🛡️ Take Cover</button>
-                    <button onclick="performCombatAction('grenade')" class="combat-btn grenade">💣 Grenade</button>
-                    <button onclick="performCombatAction('flank')" class="combat-btn flank">➜ Flank Enemy</button>
-                    <button onclick="performCombatAction('medkit')" class="combat-btn medkit">🏥 Use Medkit</button>
+                    <button onclick="selectCombatAction('targeted_fire')" class="combat-btn attack">🎯 Targeted Fire</button>
+                    <button onclick="selectCombatAction('suppressing_fire')" class="combat-btn suppress">🔫 Suppressing Fire</button>
+                    <button onclick="selectCombatAction('take_cover')" class="combat-btn defend">🛡️ Take Cover</button>
+                    <button onclick="selectCombatAction('grenade')" class="combat-btn grenade">💣 Grenade</button>
+                    <button onclick="selectCombatAction('flank')" class="combat-btn flank">➜ Flank Enemy</button>
+                    <button onclick="selectCombatAction('medkit')" class="combat-btn medkit">🏥 Use Medkit</button>
                 </div>
                 
                 <div class="squad-orders">
                     <h4>Squad Orders</h4>
-                    <button onclick="squadOrder('focus_fire')" class="squad-btn">Focus Fire</button>
-                    <button onclick="squadOrder('defensive')" class="squad-btn">Defensive Position</button>
-                    <button onclick="squadOrder('advance')" class="squad-btn">Advance</button>
-                    <button onclick="squadOrder('spread_out')" class="squad-btn">Spread Out</button>
+                    <button onclick="selectSquadOrder('focus_fire')" class="squad-btn">Focus Fire</button>
+                    <button onclick="selectSquadOrder('defensive')" class="squad-btn">Defensive Position</button>
+                    <button onclick="selectSquadOrder('advance')" class="squad-btn">Advance</button>
+                    <button onclick="selectSquadOrder('spread_out')" class="squad-btn">Spread Out</button>
+                </div>
+                
+                <div class="turn-confirmation">
+                    <div class="selected-actions" id="selectedActions">
+                        <p>Select your action and squad orders, then confirm your turn.</p>
+                    </div>
+                    <button onclick="confirmTurn()" id="confirmTurnBtn" class="confirm-btn" disabled>⚔️ Confirm Turn</button>
                 </div>
             </div>
             
@@ -288,7 +295,10 @@ let combatState = {
     combatResult: null,
     playerInCover: false,
     enemiesInCover: [],
-    environment: 'open_field' // open_field, urban, forest, bunker
+    environment: 'open_field', // open_field, urban, forest, bunker
+    selectedAction: null,
+    selectedSquadOrders: {},
+    turnConfirmed: false
 };
 
 function initializeCombatRound() {
@@ -1054,40 +1064,71 @@ function updateCombatDisplay() {
 }
 
 function displayCombatUnits() {
-    // Display squad units
+    // Display squad units with enhanced health visibility
     const squadContainer = document.getElementById('squadUnits');
     if (squadContainer) {
         squadContainer.innerHTML = '';
         combatState.squadMembers.forEach(member => {
+            const maxHealth = member.maxHealth || member.max_health || 100;
+            const healthPercent = (member.health / maxHealth) * 100;
+            const healthClass = member.health <= 0 ? ' wounded' : 
+                               healthPercent <= 25 ? ' critical' :
+                               healthPercent <= 50 ? ' injured' : '';
+            
             const unitDiv = document.createElement('div');
-            unitDiv.className = 'squad-unit' + (member.health <= 0 ? ' wounded' : '');
+            unitDiv.className = 'squad-unit' + healthClass;
             unitDiv.innerHTML = `
-                <div class="unit-name">${member.name} ${member.inCover ? '<span class="cover-indicator">(Cover)</span>' : ''}</div>
-                <div class="health-bar small">
-                    <div class="health-fill" style="width: ${(member.health / member.maxHealth) * 100}%"></div>
-                    <span class="health-text">${member.health}/${member.maxHealth}</span>
+                <div class="unit-header">
+                    <div class="unit-name">${member.name}</div>
+                    <div class="unit-status">
+                        ${member.inCover ? '<span class="cover-indicator">🛡️ Cover</span>' : ''}
+                        ${member.suppressed ? '<span class="suppressed">😵 Suppressed</span>' : ''}
+                        <span class="health-status">${member.health}/${maxHealth} HP</span>
+                    </div>
+                </div>
+                <div class="health-bar">
+                    <div class="health-fill${healthClass}" style="width: ${Math.max(0, healthPercent)}%"></div>
+                    <span class="health-text">${member.health}/${maxHealth}</span>
+                </div>
+                <div class="unit-info">
+                    <small>${member.weapon || member.speciality} - ${combatState.squadOrders?.[member.id] || 'Follow'}</small>
                 </div>
             `;
             squadContainer.appendChild(unitDiv);
         });
     }
     
-    // Display enemy units
+    // Display enemy units with enhanced health visibility
     const enemyContainer = document.getElementById('enemyUnits');
     if (enemyContainer) {
         enemyContainer.innerHTML = '';
         combatState.enemies.forEach((enemy, index) => {
+            // Ensure maxHealth exists for enemies
+            const maxHealth = enemy.maxHealth || enemy.max_health || enemy.health || 100;
+            if (!enemy.maxHealth) enemy.maxHealth = maxHealth;
+            
+            const healthPercent = (enemy.health / maxHealth) * 100;
+            const healthClass = enemy.health <= 0 ? ' eliminated' : 
+                               healthPercent <= 25 ? ' critical' :
+                               healthPercent <= 50 ? ' injured' : '';
+            
             const unitDiv = document.createElement('div');
-            unitDiv.className = 'enemy-unit' + (enemy.health <= 0 ? ' eliminated' : '');
+            unitDiv.className = 'enemy-unit' + healthClass;
             unitDiv.innerHTML = `
-                <div class="unit-name">
-                    ${enemy.type} 
-                    ${enemy.inCover ? '<span class="cover-indicator">(Cover)</span>' : ''}
-                    ${enemy.suppressed ? '<span class="suppressed">(Suppressed)</span>' : ''}
+                <div class="unit-header">
+                    <div class="unit-name">${enemy.type}</div>
+                    <div class="unit-status">
+                        ${enemy.inCover ? '<span class="cover-indicator">🛡️ Cover</span>' : ''}
+                        ${enemy.suppressed ? '<span class="suppressed">😵 Pinned</span>' : ''}
+                        <span class="health-status">${enemy.health}/${maxHealth} HP</span>
+                    </div>
                 </div>
-                <div class="health-bar small enemy-health">
-                    <div class="health-fill" style="width: ${(enemy.health / enemy.maxHealth) * 100}%"></div>
-                    <span class="health-text">${enemy.health}/${enemy.maxHealth}</span>
+                <div class="health-bar enemy-health">
+                    <div class="health-fill enemy${healthClass}" style="width: ${Math.max(0, healthPercent)}%"></div>
+                    <span class="health-text">${enemy.health}/${maxHealth}</span>
+                </div>
+                <div class="unit-info">
+                    <small>${enemy.position || 'Hostile Position'} - ${enemy.armor ? 'Armored' : 'Infantry'}</small>
                 </div>
             `;
             enemyContainer.appendChild(unitDiv);
@@ -1676,6 +1717,141 @@ function showLoadingOverlay(message = 'Processing tactical decision...') {
     });
   }
 })();
+
+// Turn confirmation system
+function selectCombatAction(action) {
+    combatState.selectedAction = action;
+    updateSelectedActionsDisplay();
+    updateTurnConfirmButton();
+    
+    // Visual feedback
+    document.querySelectorAll('.combat-btn').forEach(btn => btn.classList.remove('selected'));
+    event.target.classList.add('selected');
+    
+    addToCombatLog(`✅ Selected action: ${getActionDisplayName(action)}`);
+}
+
+function selectSquadOrder(order) {
+    combatState.selectedSquadOrders = { global: order };
+    updateSelectedActionsDisplay();
+    updateTurnConfirmButton();
+    
+    // Visual feedback
+    document.querySelectorAll('.squad-btn').forEach(btn => btn.classList.remove('selected'));
+    event.target.classList.add('selected');
+    
+    addToCombatLog(`✅ Squad order: ${getOrderDisplayName(order)}`);
+}
+
+function updateSelectedActionsDisplay() {
+    const selectedDiv = document.getElementById('selectedActions');
+    if (!selectedDiv) return;
+    
+    let display = '';
+    if (combatState.selectedAction) {
+        display += `<strong>Your Action:</strong> ${getActionDisplayName(combatState.selectedAction)}<br>`;
+    }
+    if (combatState.selectedSquadOrders?.global) {
+        display += `<strong>Squad Order:</strong> ${getOrderDisplayName(combatState.selectedSquadOrders.global)}`;
+    }
+    
+    if (!display) {
+        display = '<p>Select your action and squad orders, then confirm your turn.</p>';
+    }
+    
+    selectedDiv.innerHTML = display;
+}
+
+function updateTurnConfirmButton() {
+    const btn = document.getElementById('confirmTurnBtn');
+    if (!btn) return;
+    
+    const canConfirm = combatState.selectedAction || combatState.selectedSquadOrders?.global;
+    btn.disabled = !canConfirm;
+    btn.style.opacity = canConfirm ? '1' : '0.5';
+}
+
+function confirmTurn() {
+    if (combatState.combatPaused) {
+        addToCombatLog('⏸️ Combat is paused. Wait for current turn to complete.');
+        return;
+    }
+    
+    if (!combatState.selectedAction && !combatState.selectedSquadOrders?.global) {
+        addToCombatLog('❌ Select at least one action or squad order first!');
+        return;
+    }
+    
+    combatState.combatPaused = true;
+    combatState.turnConfirmed = true;
+    
+    addToCombatLog(`⚔️ Turn confirmed! Executing orders...`);
+    
+    // Execute player action first
+    if (combatState.selectedAction) {
+        performCombatAction(combatState.selectedAction);
+    }
+    
+    // Apply squad orders
+    if (combatState.selectedSquadOrders?.global) {
+        applyGlobalSquadOrder(combatState.selectedSquadOrders.global);
+    }
+    
+    // Reset selections
+    combatState.selectedAction = null;
+    combatState.selectedSquadOrders = {};
+    document.querySelectorAll('.combat-btn, .squad-btn').forEach(btn => btn.classList.remove('selected'));
+    updateSelectedActionsDisplay();
+    updateTurnConfirmButton();
+    
+    // Continue with enemy turn after delay
+    setTimeout(() => {
+        if (!checkCombatEnd()) {
+            processEnemyTurn();
+        }
+        combatState.combatPaused = false;
+        combatState.turnConfirmed = false;
+    }, 2000);
+}
+
+function getActionDisplayName(action) {
+    const names = {
+        'targeted_fire': 'Targeted Fire 🎯',
+        'suppressing_fire': 'Suppressing Fire 🔫',
+        'take_cover': 'Take Cover 🛡️',
+        'grenade': 'Throw Grenade 💣',
+        'flank': 'Flank Enemy ➜',
+        'medkit': 'Use Medkit 🏥'
+    };
+    return names[action] || action;
+}
+
+function getOrderDisplayName(order) {
+    const names = {
+        'focus_fire': 'Focus Fire 🎯',
+        'defensive': 'Defensive Position 🛡️',
+        'advance': 'Advance Forward ⬆️',
+        'spread_out': 'Spread Out 📐'
+    };
+    return names[order] || order;
+}
+
+function applyGlobalSquadOrder(order) {
+    combatState.squadMembers.forEach(member => {
+        if (member.health > 0) {
+            combatState.squadOrders[member.id] = order;
+        }
+    });
+    
+    const orderDescriptions = {
+        'focus_fire': 'Squad will focus fire on priority targets',
+        'defensive': 'Squad takes defensive positions',
+        'advance': 'Squad advances on enemy positions',
+        'spread_out': 'Squad spreads out for better coverage'
+    };
+    
+    addToCombatLog(`📋 Squad Order: ${orderDescriptions[order] || order}`);
+}
 
 // Animation helpers
 function animateElement(element, animation, duration = 500) {
