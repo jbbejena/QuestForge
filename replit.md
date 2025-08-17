@@ -19,6 +19,7 @@ This is a mobile-optimized, text-based WWII adventure game built with Flask. Pla
 - **Advanced Keyboard Controls** - Comprehensive shortcuts including Ctrl+S (save), Ctrl+M (medkit), number keys for choices, and combat hotkeys
 - **Backend API Integration** - Flask routes for combat mechanics, item usage, and save/load functionality with proper error handling
 - **Mobile Combat Interface** - Responsive combat modal with animations and touch-friendly controls
+- **Post-Combat Bug Fix (August 17, 2025)** - Fixed critical error in squad casualty handling where string casualty names weren't properly matched with squad member objects
 
 ## User Preferences
 

@@ -1469,9 +1469,17 @@ def integrate_combat_result():
     # Handle squad casualties with safe data access
     squad_casualties = data.get("squadCasualties", []) if data else []
     squad = session.get("squad", [])
-    for casualty in squad_casualties:
-        if casualty in squad:
-            squad.remove(casualty)
+    for casualty_name in squad_casualties:
+        # Find and remove squad member by name
+        for i, member in enumerate(squad):
+            if member.get("name") == casualty_name:
+                # Store dead member for potential revival later
+                dead_members = session.get("dead_squad_members", [])
+                dead_members.append(member)
+                session["dead_squad_members"] = dead_members
+                # Remove from active squad
+                squad.pop(i)
+                break
     
     # Generate combat story summary with safe data access
     enemies_eliminated = data.get("enemiesEliminated", 0) if data else 0
