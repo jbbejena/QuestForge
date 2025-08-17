@@ -201,44 +201,70 @@ function triggerCombatEncounter() {
 function createCombatModal() {
     const modal = document.createElement('div');
     modal.id = 'combatModal';
-    modal.className = 'combat-modal';
+    modal.className = 'combat-modal enhanced';
     modal.innerHTML = `
         <div class="combat-content">
             <div class="combat-header">
-                <h2>⚔️ Combat Encounter</h2>
-                <div class="combat-status">
-                    <div class="player-status">
-                        <h3>Your Status</h3>
+                <h2>⚔️ Tactical Combat</h2>
+                <div class="environment-indicator">
+                    Environment: <span id="combatEnvironment">Open Field</span>
+                </div>
+            </div>
+            
+            <div class="combat-field">
+                <div class="allied-forces">
+                    <h3>Allied Forces</h3>
+                    <div class="player-unit">
+                        <div class="unit-name">You <span id="playerCover" class="cover-indicator"></span></div>
                         <div class="health-bar">
                             <div class="health-fill" id="combatPlayerHealth"></div>
                             <span id="combatPlayerHealthText">100/100</span>
                         </div>
                     </div>
-                    <div class="enemy-status">
-                        <h3>Enemy Status</h3>
-                        <div class="health-bar">
-                            <div class="health-fill enemy-health" id="combatEnemyHealth"></div>
-                            <span id="combatEnemyHealthText">100/100</span>
-                        </div>
+                    <div id="squadUnits" class="squad-units"></div>
+                </div>
+                
+                <div class="battlefield-center">
+                    <div class="combat-log" id="combatLog">
+                        <p>Enemy forces spotted! Tactical combat initiated!</p>
                     </div>
+                </div>
+                
+                <div class="enemy-forces">
+                    <h3>Enemy Forces</h3>
+                    <div id="enemyUnits" class="enemy-units"></div>
                 </div>
             </div>
             
-            <div class="combat-log" id="combatLog">
-                <p>Enemy forces spotted! Prepare for combat!</p>
-            </div>
-            
-            <div class="combat-actions">
-                <button onclick="performCombatAction('attack')" class="combat-btn attack">🔫 Attack</button>
-                <button onclick="performCombatAction('defend')" class="combat-btn defend">🛡️ Defend</button>
-                <button onclick="performCombatAction('grenade')" class="combat-btn grenade">💣 Grenade</button>
-                <button onclick="performCombatAction('retreat')" class="combat-btn retreat">🏃 Retreat</button>
+            <div class="combat-controls">
+                <div class="combat-actions">
+                    <h4>Your Actions</h4>
+                    <button onclick="performCombatAction('targeted_fire')" class="combat-btn attack">🎯 Targeted Fire</button>
+                    <button onclick="performCombatAction('suppressing_fire')" class="combat-btn suppress">🔫 Suppressing Fire</button>
+                    <button onclick="performCombatAction('take_cover')" class="combat-btn defend">🛡️ Take Cover</button>
+                    <button onclick="performCombatAction('grenade')" class="combat-btn grenade">💣 Grenade</button>
+                    <button onclick="performCombatAction('flank')" class="combat-btn flank">➜ Flank Enemy</button>
+                    <button onclick="performCombatAction('medkit')" class="combat-btn medkit">🏥 Use Medkit</button>
+                </div>
+                
+                <div class="squad-orders">
+                    <h4>Squad Orders</h4>
+                    <button onclick="squadOrder('focus_fire')" class="squad-btn">Focus Fire</button>
+                    <button onclick="squadOrder('defensive')" class="squad-btn">Defensive Position</button>
+                    <button onclick="squadOrder('advance')" class="squad-btn">Advance</button>
+                    <button onclick="squadOrder('spread_out')" class="squad-btn">Spread Out</button>
+                </div>
             </div>
             
             <div class="combat-resources">
                 <span>Ammo: <span id="combatAmmo">12</span></span>
                 <span>Grenades: <span id="combatGrenades">2</span></span>
                 <span>Medkits: <span id="combatMedkits">2</span></span>
+                <span>Round: <span id="combatRound">1</span></span>
+            </div>
+            
+            <div class="combat-footer">
+                <button onclick="attemptRetreat()" class="retreat-btn">🏃 Tactical Retreat</button>
             </div>
         </div>
     `;
@@ -253,10 +279,22 @@ let combatState = {
     playerGrenades: 2,
     playerMedkits: 2,
     round: 1,
-    playerDefending: false
+    playerDefending: false,
+    squadMembers: [],
+    enemies: [],
+    currentEnemyIndex: 0,
+    combatLog: [],
+    combatPaused: false,
+    combatResult: null,
+    playerInCover: false,
+    enemiesInCover: [],
+    environment: 'open_field' // open_field, urban, forest, bunker
 };
 
 function initializeCombatRound() {
+    // Pause the main game
+    combatState.combatPaused = true;
+    
     // Initialize combat with player's current stats
     fetch('/get_combat_stats')
         .then(response => response.json())
@@ -265,71 +303,172 @@ function initializeCombatRound() {
             combatState.playerAmmo = data.ammo || 12;
             combatState.playerGrenades = data.grenades || 2;
             combatState.playerMedkits = data.medkits || 2;
-            combatState.enemyHealth = data.enemy_health || 100;
+            
+            // Initialize squad members
+            combatState.squadMembers = data.squad || [];
+            combatState.squadMembers = combatState.squadMembers.map(name => ({
+                name: name,
+                health: 80,
+                maxHealth: 80,
+                inCover: false,
+                suppressed: false
+            }));
+            
+            // Determine enemy count and type based on difficulty
+            const difficulty = data.difficulty || 'Medium';
+            const enemyCount = difficulty === 'Easy' ? 2 : difficulty === 'Hard' ? 5 : 3;
+            
+            // Initialize enemies
+            combatState.enemies = [];
+            const enemyTypes = ['Rifleman', 'Machine Gunner', 'Grenadier', 'Sniper', 'Officer'];
+            for (let i = 0; i < enemyCount; i++) {
+                combatState.enemies.push({
+                    type: enemyTypes[Math.floor(Math.random() * enemyTypes.length)],
+                    health: difficulty === 'Hard' ? 120 : 100,
+                    maxHealth: difficulty === 'Hard' ? 120 : 100,
+                    inCover: Math.random() > 0.5,
+                    suppressed: false,
+                    targeting: null
+                });
+            }
+            
+            // Set environment based on mission type
+            const missionType = data.mission_type || 'patrol';
+            if (missionType.includes('urban')) {
+                combatState.environment = 'urban';
+            } else if (missionType.includes('forest')) {
+                combatState.environment = 'forest';
+            } else if (missionType.includes('bunker')) {
+                combatState.environment = 'bunker';
+            } else {
+                combatState.environment = 'open_field';
+            }
             
             updateCombatDisplay();
+            displayCombatUnits();
         })
         .catch(() => {
             // Use default values if fetch fails
+            combatState.enemies = [
+                { type: 'Rifleman', health: 100, maxHealth: 100, inCover: false, suppressed: false }
+            ];
             updateCombatDisplay();
+            displayCombatUnits();
         });
 }
 
 function performCombatAction(action) {
-    if (combatState.enemyHealth <= 0 || combatState.playerHealth <= 0) {
-        return; // Combat is over
+    // Check if combat is already over
+    const activeEnemies = combatState.enemies.filter(e => e.health > 0);
+    if (activeEnemies.length === 0 || combatState.playerHealth <= 0) {
+        return;
     }
     
-    let damage = 0;
     let logMessage = '';
     combatState.playerDefending = false;
     
     switch(action) {
-        case 'attack':
+        case 'targeted_fire':
             if (combatState.playerAmmo > 0) {
-                damage = Math.floor(Math.random() * 25) + 15; // 15-40 damage
-                combatState.enemyHealth -= damage;
+                // Select enemy with lowest health or not in cover
+                const target = selectBestTarget(activeEnemies);
+                const hitChance = calculateHitChance(target);
                 combatState.playerAmmo--;
-                logMessage = `You fire your weapon! Enemy takes ${damage} damage.`;
+                
+                if (Math.random() < hitChance) {
+                    const damage = Math.floor(Math.random() * 25) + 15;
+                    target.health = Math.max(0, target.health - damage);
+                    logMessage = `Targeted fire hits ${target.type}! ${damage} damage dealt.`;
+                    
+                    if (target.health <= 0) {
+                        logMessage += ` ${target.type} eliminated!`;
+                    }
+                } else {
+                    logMessage = `Shot missed! ${target.type} evades your fire.`;
+                }
             } else {
-                logMessage = 'No ammo remaining! You attempt to use your rifle as a club for minimal damage.';
-                damage = Math.floor(Math.random() * 10) + 5;
-                combatState.enemyHealth -= damage;
+                logMessage = 'No ammo remaining!';
             }
             break;
             
-        case 'defend':
+        case 'suppressing_fire':
+            if (combatState.playerAmmo >= 3) {
+                combatState.playerAmmo -= 3;
+                let suppressed = 0;
+                activeEnemies.forEach(enemy => {
+                    if (Math.random() < 0.7) {
+                        enemy.suppressed = true;
+                        suppressed++;
+                        const damage = Math.floor(Math.random() * 10) + 5;
+                        enemy.health = Math.max(0, enemy.health - damage);
+                    }
+                });
+                logMessage = `Suppressing fire! ${suppressed} enemies pinned down.`;
+            } else {
+                logMessage = 'Not enough ammo for suppressing fire!';
+            }
+            break;
+            
+        case 'take_cover':
+            combatState.playerInCover = true;
             combatState.playerDefending = true;
-            logMessage = 'You take defensive position behind cover.';
+            logMessage = 'You take cover behind ' + getCoverDescription();
             break;
             
         case 'grenade':
             if (combatState.playerGrenades > 0) {
-                damage = Math.floor(Math.random() * 40) + 30; // 30-70 damage
-                combatState.enemyHealth -= damage;
                 combatState.playerGrenades--;
-                logMessage = `Grenade explosion! Enemy takes ${damage} damage.`;
+                const targets = activeEnemies.slice(0, 2); // Hit up to 2 enemies
+                let totalDamage = 0;
+                targets.forEach(enemy => {
+                    const damage = Math.floor(Math.random() * 40) + 30;
+                    enemy.health = Math.max(0, enemy.health - damage);
+                    totalDamage += damage;
+                    if (enemy.inCover) enemy.inCover = false;
+                });
+                logMessage = `Grenade explosion! ${totalDamage} total damage to ${targets.length} enemies!`;
             } else {
                 logMessage = 'No grenades remaining!';
             }
             break;
             
-        case 'retreat':
-            logMessage = 'You attempt to retreat from combat...';
-            if (Math.random() < 0.7) { // 70% success rate
-                endCombat('retreat');
-                return;
+        case 'flank':
+            if (Math.random() < 0.6) {
+                combatState.playerInCover = false;
+                const target = activeEnemies[0];
+                target.inCover = false;
+                const damage = Math.floor(Math.random() * 35) + 20;
+                target.health = Math.max(0, target.health - damage);
+                logMessage = `Successful flanking maneuver! ${target.type} exposed and takes ${damage} damage!`;
             } else {
-                logMessage += ' Retreat failed! Enemy blocks your escape.';
+                const damage = Math.floor(Math.random() * 15) + 10;
+                combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
+                logMessage = `Flanking attempt failed! You're exposed and take ${damage} damage!`;
+            }
+            break;
+            
+        case 'medkit':
+            if (combatState.playerMedkits > 0 && combatState.playerHealth < 100) {
+                combatState.playerMedkits--;
+                const healAmount = 35;
+                combatState.playerHealth = Math.min(100, combatState.playerHealth + healAmount);
+                logMessage = `Medkit used! Restored ${healAmount} health.`;
+            } else if (combatState.playerHealth >= 100) {
+                logMessage = 'Already at full health!';
+            } else {
+                logMessage = 'No medkits available!';
             }
             break;
     }
     
     addToCombatLog(logMessage);
     
-    // Check if enemy is defeated
-    if (combatState.enemyHealth <= 0) {
-        addToCombatLog('Enemy defeated! You are victorious!');
+    // Squad actions
+    processSquadActions();
+    
+    // Check victory condition
+    if (activeEnemies.filter(e => e.health > 0).length === 0) {
+        addToCombatLog('All enemies eliminated! Victory achieved!');
         setTimeout(() => endCombat('victory'), 2000);
         return;
     }
@@ -342,50 +481,194 @@ function performCombatAction(action) {
     updateCombatDisplay();
 }
 
-function enemyTurn() {
-    if (combatState.enemyHealth <= 0) return;
+// Helper functions for enhanced combat
+function selectBestTarget(enemies) {
+    // Prioritize enemies not in cover or with low health
+    const exposed = enemies.filter(e => !e.inCover);
+    if (exposed.length > 0) {
+        return exposed.reduce((a, b) => a.health < b.health ? a : b);
+    }
+    return enemies.reduce((a, b) => a.health < b.health ? a : b);
+}
+
+function calculateHitChance(target) {
+    let baseChance = 0.75;
+    if (target.inCover) baseChance -= 0.3;
+    if (target.suppressed) baseChance += 0.2;
+    if (combatState.playerInCover) baseChance += 0.15;
+    if (combatState.environment === 'urban') baseChance -= 0.1;
+    return Math.max(0.2, Math.min(0.95, baseChance));
+}
+
+function getCoverDescription() {
+    const covers = {
+        'urban': ['a destroyed car', 'rubble', 'a building corner', 'a low wall'],
+        'forest': ['a large tree', 'fallen logs', 'thick undergrowth', 'a rock formation'],
+        'bunker': ['concrete barriers', 'sandbags', 'fortified walls', 'steel plates'],
+        'open_field': ['a shallow ditch', 'tall grass', 'a small hill', 'scattered rocks']
+    };
+    const options = covers[combatState.environment] || covers['open_field'];
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+function processSquadActions() {
+    if (combatState.squadMembers.length === 0) return;
     
-    const actions = ['attack', 'heavy_attack', 'defend'];
-    const action = actions[Math.floor(Math.random() * actions.length)];
+    const activeSquad = combatState.squadMembers.filter(m => m.health > 0);
+    const activeEnemies = combatState.enemies.filter(e => e.health > 0);
     
-    let damage = 0;
+    activeSquad.forEach(member => {
+        if (activeEnemies.length === 0) return;
+        
+        // Squad members act based on orders or autonomously
+        const action = Math.random();
+        if (action < 0.6) {
+            // Attack
+            const target = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
+            const damage = Math.floor(Math.random() * 20) + 10;
+            target.health = Math.max(0, target.health - damage);
+            addToCombatLog(`${member.name} fires at ${target.type}, dealing ${damage} damage!`);
+        } else if (action < 0.8) {
+            // Support
+            member.inCover = true;
+            addToCombatLog(`${member.name} takes defensive position.`);
+        }
+    });
+}
+
+function squadOrder(order) {
+    const activeSquad = combatState.squadMembers.filter(m => m.health > 0);
     let logMessage = '';
     
-    switch(action) {
-        case 'attack':
-            damage = Math.floor(Math.random() * 20) + 10;
-            if (combatState.playerDefending) {
-                damage = Math.floor(damage * 0.5); // Reduced damage when defending
-                logMessage = `Enemy attacks but your defense reduces the damage! You take ${damage} damage.`;
-            } else {
-                logMessage = `Enemy fires at you! You take ${damage} damage.`;
+    switch(order) {
+        case 'focus_fire':
+            const target = selectBestTarget(combatState.enemies.filter(e => e.health > 0));
+            if (target) {
+                const totalDamage = activeSquad.length * (Math.floor(Math.random() * 15) + 10);
+                target.health = Math.max(0, target.health - totalDamage);
+                logMessage = `Squad focuses fire on ${target.type}! ${totalDamage} damage dealt!`;
             }
-            combatState.playerHealth -= damage;
             break;
             
-        case 'heavy_attack':
-            damage = Math.floor(Math.random() * 30) + 20;
-            if (combatState.playerDefending) {
-                damage = Math.floor(damage * 0.7);
-                logMessage = `Enemy launches heavy assault! Your cover helps but you still take ${damage} damage.`;
-            } else {
-                logMessage = `Enemy heavy assault! You take ${damage} damage.`;
-            }
-            combatState.playerHealth -= damage;
+        case 'defensive':
+            activeSquad.forEach(member => {
+                member.inCover = true;
+            });
+            logMessage = 'Squad takes defensive positions!';
             break;
             
-        case 'defend':
-            logMessage = 'Enemy takes defensive position.';
+        case 'advance':
+            activeSquad.forEach(member => {
+                member.inCover = false;
+            });
+            combatState.enemies.forEach(enemy => {
+                if (Math.random() < 0.3) enemy.suppressed = true;
+            });
+            logMessage = 'Squad advances aggressively!';
+            break;
+            
+        case 'spread_out':
+            const casualtyReduction = 0.5;
+            combatState.squadMembers.forEach(m => m.casualtyChance = casualtyReduction);
+            logMessage = 'Squad spreads out to minimize casualties!';
             break;
     }
     
     addToCombatLog(logMessage);
+    updateCombatDisplay();
+}
+
+function enemyTurn() {
+    const activeEnemies = combatState.enemies.filter(e => e.health > 0);
+    if (activeEnemies.length === 0) return;
     
-    // Check if player is defeated
+    activeEnemies.forEach(enemy => {
+        // Skip if suppressed
+        if (enemy.suppressed) {
+            enemy.suppressed = false;
+            addToCombatLog(`${enemy.type} recovers from suppression.`);
+            return;
+        }
+        
+        // Enemy AI based on type
+        let action = 'attack';
+        if (enemy.type === 'Sniper' && !enemy.inCover) {
+            action = 'take_cover';
+        } else if (enemy.type === 'Grenadier' && Math.random() < 0.3) {
+            action = 'grenade';
+        } else if (enemy.type === 'Officer' && Math.random() < 0.4) {
+            action = 'rally';
+        }
+        
+        switch(action) {
+            case 'attack':
+                // Choose target (player or squad member)
+                const targets = [{ name: 'Player', health: combatState.playerHealth }];
+                combatState.squadMembers.filter(m => m.health > 0).forEach(m => targets.push(m));
+                const target = targets[Math.floor(Math.random() * targets.length)];
+                
+                let damage = Math.floor(Math.random() * 20) + 10;
+                if (enemy.type === 'Machine Gunner') damage += 10;
+                if (enemy.type === 'Sniper') damage += 15;
+                
+                // Apply cover modifiers
+                if (target.name === 'Player') {
+                    if (combatState.playerInCover) damage = Math.floor(damage * 0.5);
+                    combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
+                    addToCombatLog(`${enemy.type} shoots at you! ${damage} damage taken.`);
+                } else {
+                    if (target.inCover) damage = Math.floor(damage * 0.5);
+                    target.health = Math.max(0, target.health - damage);
+                    addToCombatLog(`${enemy.type} shoots at ${target.name}! ${damage} damage dealt.`);
+                    
+                    if (target.health <= 0) {
+                        addToCombatLog(`${target.name} has been critically wounded!`);
+                    }
+                }
+                break;
+                
+            case 'take_cover':
+                enemy.inCover = true;
+                addToCombatLog(`${enemy.type} takes cover.`);
+                break;
+                
+            case 'grenade':
+                const grenadeTargets = Math.random() < 0.5 ? 
+                    [{ name: 'Player', health: combatState.playerHealth }] : 
+                    combatState.squadMembers.filter(m => m.health > 0).slice(0, 2);
+                    
+                grenadeTargets.forEach(target => {
+                    const damage = Math.floor(Math.random() * 25) + 15;
+                    if (target.name === 'Player') {
+                        combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
+                    } else {
+                        target.health = Math.max(0, target.health - damage);
+                    }
+                });
+                addToCombatLog(`${enemy.type} throws a grenade! Area damage inflicted!`);
+                break;
+                
+            case 'rally':
+                activeEnemies.forEach(e => {
+                    if (e.suppressed) e.suppressed = false;
+                    e.health = Math.min(e.maxHealth, e.health + 10);
+                });
+                addToCombatLog(`${enemy.type} rallies the troops! Enemy morale boosted!`);
+                break;
+        }
+    });
+    
+    // Check defeat conditions
     if (combatState.playerHealth <= 0) {
         addToCombatLog('You have been critically wounded!');
         setTimeout(() => endCombat('defeat'), 2000);
         return;
+    }
+    
+    // Check if all squad members are down
+    const activeSquad = combatState.squadMembers.filter(m => m.health > 0);
+    if (combatState.squadMembers.length > 0 && activeSquad.length === 0) {
+        addToCombatLog('Your entire squad has been eliminated!');
     }
     
     combatState.round++;
@@ -403,24 +686,85 @@ function addToCombatLog(message) {
 }
 
 function updateCombatDisplay() {
-    // Update health bars
-    document.getElementById('combatPlayerHealth').style.width = Math.max(0, combatState.playerHealth) + '%';
-    document.getElementById('combatPlayerHealthText').textContent = `${Math.max(0, combatState.playerHealth)}/100`;
+    // Update player health
+    const playerHealthBar = document.getElementById('combatPlayerHealth');
+    const playerHealthText = document.getElementById('combatPlayerHealthText');
+    if (playerHealthBar) {
+        playerHealthBar.style.width = Math.max(0, combatState.playerHealth) + '%';
+        updateHealthBarColor(playerHealthBar, combatState.playerHealth);
+    }
+    if (playerHealthText) {
+        playerHealthText.textContent = `${Math.max(0, combatState.playerHealth)}/100`;
+    }
     
-    document.getElementById('combatEnemyHealth').style.width = Math.max(0, combatState.enemyHealth) + '%';
-    document.getElementById('combatEnemyHealthText').textContent = `${Math.max(0, combatState.enemyHealth)}/100`;
+    // Update cover indicator
+    const playerCover = document.getElementById('playerCover');
+    if (playerCover) {
+        playerCover.textContent = combatState.playerInCover ? '(In Cover)' : '';
+        playerCover.className = combatState.playerInCover ? 'cover-indicator in-cover' : 'cover-indicator';
+    }
     
     // Update resources
     document.getElementById('combatAmmo').textContent = combatState.playerAmmo;
     document.getElementById('combatGrenades').textContent = combatState.playerGrenades;
     document.getElementById('combatMedkits').textContent = combatState.playerMedkits;
+    document.getElementById('combatRound').textContent = combatState.round;
     
-    // Update health bar colors
-    const playerHealthBar = document.getElementById('combatPlayerHealth');
-    const enemyHealthBar = document.getElementById('combatEnemyHealth');
+    // Update environment
+    const envElement = document.getElementById('combatEnvironment');
+    if (envElement) {
+        const envNames = {
+            'urban': 'Urban Warfare',
+            'forest': 'Forest Combat',
+            'bunker': 'Bunker Assault',
+            'open_field': 'Open Field'
+        };
+        envElement.textContent = envNames[combatState.environment] || 'Unknown';
+    }
     
-    updateHealthBarColor(playerHealthBar, combatState.playerHealth);
-    updateHealthBarColor(enemyHealthBar, combatState.enemyHealth);
+    displayCombatUnits();
+}
+
+function displayCombatUnits() {
+    // Display squad units
+    const squadContainer = document.getElementById('squadUnits');
+    if (squadContainer) {
+        squadContainer.innerHTML = '';
+        combatState.squadMembers.forEach(member => {
+            const unitDiv = document.createElement('div');
+            unitDiv.className = 'squad-unit' + (member.health <= 0 ? ' wounded' : '');
+            unitDiv.innerHTML = `
+                <div class="unit-name">${member.name} ${member.inCover ? '<span class="cover-indicator">(Cover)</span>' : ''}</div>
+                <div class="health-bar small">
+                    <div class="health-fill" style="width: ${(member.health / member.maxHealth) * 100}%"></div>
+                    <span class="health-text">${member.health}/${member.maxHealth}</span>
+                </div>
+            `;
+            squadContainer.appendChild(unitDiv);
+        });
+    }
+    
+    // Display enemy units
+    const enemyContainer = document.getElementById('enemyUnits');
+    if (enemyContainer) {
+        enemyContainer.innerHTML = '';
+        combatState.enemies.forEach((enemy, index) => {
+            const unitDiv = document.createElement('div');
+            unitDiv.className = 'enemy-unit' + (enemy.health <= 0 ? ' eliminated' : '');
+            unitDiv.innerHTML = `
+                <div class="unit-name">
+                    ${enemy.type} 
+                    ${enemy.inCover ? '<span class="cover-indicator">(Cover)</span>' : ''}
+                    ${enemy.suppressed ? '<span class="suppressed">(Suppressed)</span>' : ''}
+                </div>
+                <div class="health-bar small enemy-health">
+                    <div class="health-fill" style="width: ${(enemy.health / enemy.maxHealth) * 100}%"></div>
+                    <span class="health-text">${enemy.health}/${enemy.maxHealth}</span>
+                </div>
+            `;
+            enemyContainer.appendChild(unitDiv);
+        });
+    }
 }
 
 function updateHealthBarColor(healthBar, health) {
@@ -435,8 +779,16 @@ function updateHealthBarColor(healthBar, health) {
 }
 
 function endCombat(outcome) {
-    // Send combat results to server
-    fetch('/combat_result', {
+    combatState.combatResult = outcome;
+    combatState.combatPaused = false;
+    
+    // Prepare combat summary
+    const enemiesEliminated = combatState.enemies.filter(e => e.health <= 0).length;
+    const squadCasualties = combatState.squadMembers.filter(m => m.health <= 0).map(m => m.name);
+    const roundsSurvived = combatState.round;
+    
+    // Send enhanced combat results to server
+    fetch('/integrate_combat_result', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -446,8 +798,12 @@ function endCombat(outcome) {
             playerHealth: combatState.playerHealth,
             playerAmmo: combatState.playerAmmo,
             playerGrenades: combatState.playerGrenades,
-            enemyHealth: combatState.enemyHealth,
-            rounds: combatState.round
+            playerMedkits: combatState.playerMedkits,
+            enemiesEliminated: enemiesEliminated,
+            totalEnemies: combatState.enemies.length,
+            squadCasualties: squadCasualties,
+            rounds: roundsSurvived,
+            environment: combatState.environment
         })
     })
     .then(response => response.json())
@@ -460,20 +816,44 @@ function endCombat(outcome) {
         console.error('Combat result error:', error);
     });
     
-    // Close combat modal
+    // Close combat modal and integrate results into story
     setTimeout(() => {
-        document.getElementById('combatModal').style.display = 'none';
+        const modal = document.getElementById('combatModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
         
-        // Refresh page to update game state
+        // Refresh page to show updated story with combat results
         if (outcome !== 'defeat') {
             location.reload();
         } else {
-            // Handle defeat - possibly redirect to game over
+            // Handle defeat
             setTimeout(() => {
                 window.location.href = '/game_over';
             }, 2000);
         }
     }, 3000);
+}
+
+function attemptRetreat() {
+    const activeSquad = combatState.squadMembers.filter(m => m.health > 0);
+    const retreatChance = 0.5 + (activeSquad.length * 0.1);
+    
+    if (Math.random() < retreatChance) {
+        addToCombatLog('Tactical retreat successful! Falling back to safer position.');
+        endCombat('retreat');
+    } else {
+        const damage = Math.floor(Math.random() * 20) + 10;
+        combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
+        addToCombatLog(`Retreat blocked by enemy fire! You take ${damage} damage.`);
+        
+        if (combatState.playerHealth <= 0) {
+            endCombat('defeat');
+        } else {
+            updateCombatDisplay();
+            enemyTurn();
+        }
+    }
 }
 
 // Use item function

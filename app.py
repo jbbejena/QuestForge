@@ -1353,6 +1353,8 @@ def mission_complete():
         campaign["current_mission"] = campaign.get("current_mission", 0) + 1
         session["score"] = session.get("score", 0) + 100
         session["missions_completed"] = session.get("missions_completed", 0) + 1
+        # Enable camping after successful missions
+        session["can_camp"] = True
     
     session["campaign"] = campaign
     
@@ -1478,6 +1480,193 @@ def use_item():
         "message": "Cannot use that item right now."
     })
 
+@app.route("/get_combat_stats")
+def get_combat_stats():
+    """Provide combat stats for the enhanced combat system."""
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    mission = session.get("mission", {})
+    squad = session.get("squad", [])
+    
+    return jsonify({
+        "health": player.get("health", 100),
+        "ammo": resources.get("ammo", 12),
+        "grenades": resources.get("grenade", 2),
+        "medkits": resources.get("medkit", 2),
+        "squad": squad,
+        "difficulty": mission.get("difficulty", "Medium"),
+        "mission_type": mission.get("name", "patrol"),
+        "enemy_health": 100
+    })
+
+@app.route("/integrate_combat_result", methods=["POST"])
+def integrate_combat_result():
+    """Integrate combat results into the story."""
+    data = request.json
+    outcome = data.get("outcome")
+    
+    # Update player stats
+    player = session.get("player", {})
+    player["health"] = data.get("playerHealth", player.get("health", 100))
+    
+    # Update resources
+    resources = session.get("resources", {})
+    resources["ammo"] = data.get("playerAmmo", resources.get("ammo", 12))
+    resources["grenade"] = data.get("playerGrenades", resources.get("grenade", 2))
+    resources["medkit"] = data.get("playerMedkits", resources.get("medkit", 2))
+    
+    # Handle squad casualties
+    squad_casualties = data.get("squadCasualties", [])
+    squad = session.get("squad", [])
+    for casualty in squad_casualties:
+        if casualty in squad:
+            squad.remove(casualty)
+    
+    # Generate combat story summary
+    enemies_eliminated = data.get("enemiesEliminated", 0)
+    total_enemies = data.get("totalEnemies", 1)
+    rounds = data.get("rounds", 1)
+    environment = data.get("environment", "open field")
+    
+    # Create combat narrative to integrate into story
+    combat_narrative = ""
+    if outcome == "victory":
+        combat_narrative = f"\n\n[COMBAT RESOLVED: After {rounds} rounds of intense fighting in the {environment}, you emerged victorious! {enemies_eliminated} of {total_enemies} enemies eliminated."
+        if squad_casualties:
+            combat_narrative += f" Casualties: {', '.join(squad_casualties)}."
+        combat_narrative += " Your squad regroups and continues the mission.]"
+        
+        # Update battle stats
+        session["battles_won"] = session.get("battles_won", 0) + 1
+        player_stats = session.get("player_stats", initialize_player_stats())
+        session["player_stats"] = update_player_stats(player_stats, "combat_victory")
+        
+    elif outcome == "retreat":
+        combat_narrative = f"\n\n[TACTICAL RETREAT: After {rounds} rounds of combat, you successfully withdrew from the engagement. The squad falls back to regroup and reassess the situation.]"
+        
+    elif outcome == "defeat":
+        combat_narrative = f"\n\n[COMBAT DEFEAT: Overwhelmed after {rounds} rounds of fighting, you were forced to abandon the mission. Critical wounds require immediate evacuation.]"
+        player["health"] = 0
+    
+    # Append combat narrative to current story
+    current_story = session.get("story", "")
+    session["story"] = current_story + combat_narrative
+    
+    # Save updated state
+    session["player"] = player
+    session["resources"] = resources
+    session["squad"] = squad
+    
+    # Save to database
+    save_to_database()
+    
+    return jsonify({
+        "success": True,
+        "message": f"Combat {outcome}!",
+        "story_continuation": combat_narrative
+    })
+
+@app.route("/camp")
+def camp():
+    """Display camping/rest interface between missions."""
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    squad = session.get("squad", [])
+    
+    # Check if player can camp (between missions)
+    if not session.get("can_camp", False):
+        return redirect(url_for("missions"))
+    
+    return render_template("camp.html",
+                         player=player,
+                         resources=resources,
+                         squad=squad,
+                         missions_completed=session.get("missions_completed", 0))
+
+@app.route("/camp_action", methods=["POST"])
+def camp_action():
+    """Handle camping actions like rest, heal, resupply."""
+    action = request.form.get("action")
+    player = session.get("player", {})
+    resources = session.get("resources", {})
+    
+    result_message = ""
+    
+    if action == "rest":
+        # Rest restores health and morale
+        heal_amount = random.randint(20, 40)
+        morale_boost = random.randint(15, 25)
+        
+        player["health"] = min(100, player.get("health", 100) + heal_amount)
+        player["morale"] = min(100, player.get("morale", 100) + morale_boost)
+        
+        result_message = f"You rest and recover. +{heal_amount} health, +{morale_boost} morale."
+        
+    elif action == "heal_squad":
+        # Heal wounded squad members (medic bonus)
+        squad = session.get("squad", [])
+        healed = 0
+        
+        if player.get("class") == "Medic":
+            # Medics can restore lost squad members
+            dead_members = session.get("dead_squad_members", [])
+            if dead_members and resources.get("medkit", 0) > 0:
+                restored = dead_members.pop()
+                squad.append(restored)
+                resources["medkit"] -= 1
+                healed += 1
+                result_message = f"Your medical expertise saves {restored}! Squad member restored."
+        else:
+            result_message = "Squad is in good condition."
+        
+        session["squad"] = squad
+        
+    elif action == "resupply":
+        # Resupply ammunition and equipment
+        supply_found = random.random() < 0.7
+        
+        if supply_found:
+            ammo_found = random.randint(5, 15)
+            grenades_found = random.randint(0, 2)
+            medkits_found = random.randint(0, 2)
+            
+            resources["ammo"] = min(30, resources.get("ammo", 12) + ammo_found)
+            resources["grenade"] = min(5, resources.get("grenade", 2) + grenades_found)
+            resources["medkit"] = min(5, resources.get("medkit", 2) + medkits_found)
+            
+            result_message = f"Supply cache found! +{ammo_found} ammo"
+            if grenades_found > 0:
+                result_message += f", +{grenades_found} grenades"
+            if medkits_found > 0:
+                result_message += f", +{medkits_found} medkits"
+        else:
+            result_message = "No supplies found in the area."
+    
+    elif action == "train":
+        # Training improves combat effectiveness
+        player["experience"] = player.get("experience", 0) + random.randint(10, 20)
+        
+        # Small chance to improve max health
+        if random.random() < 0.3:
+            player["max_health"] = min(120, player.get("max_health", 100) + 5)
+            result_message = "Intensive training complete! Max health increased."
+        else:
+            result_message = "Training session complete. Combat skills improved."
+    
+    # Save state
+    session["player"] = player
+    session["resources"] = resources
+    session["can_camp"] = False  # Can only camp once between missions
+    
+    save_to_database()
+    
+    return jsonify({
+        "success": True,
+        "message": result_message,
+        "player": player,
+        "resources": resources
+    })
+
 @app.route("/quick_save", methods=["POST"])
 def quick_save():
     """Save current game state."""
@@ -1578,19 +1767,7 @@ def cleanup_session():
     session.clear()
     session.update(session_copy)
 
-@app.route("/get_combat_stats")
-def get_combat_stats():
-    """Return current player combat stats for JavaScript."""
-    player = session.get("player", {})
-    resources = session.get("resources", {})
-    
-    return jsonify({
-        "health": player.get("health", 100),
-        "ammo": resources.get("ammo", 12),
-        "grenades": resources.get("grenade", 2),
-        "medkits": resources.get("medkit", 2),
-        "enemy_health": 100  # Can be randomized or based on mission difficulty
-    })
+# Removed duplicate route - using the enhanced version above
 
 @app.route("/combat_result", methods=["POST"])
 def combat_result():

@@ -90,6 +90,10 @@
         <!-- Navigation -->
         <div class="navigation-buttons">
             {% if outcome == "success" %}
+            <a href="{{ url_for('camp') }}" class="btn btn-success">
+                <i class="fas fa-campground"></i>
+                Set Up Camp
+            </a>
             <a href="{{ url_for('mission_menu') }}" class="btn btn-primary">
                 <i class="fas fa-forward"></i>
                 Next Mission
