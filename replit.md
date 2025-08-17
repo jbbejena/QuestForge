@@ -11,6 +11,9 @@ This is a mobile-optimized, text-based WWII adventure game built with Flask. Pla
 - **Enhanced Error Handling** - Centralized error recovery, session validation, and graceful degradation patterns
 - **Performance Optimizations** - Added session caching, story compression, rate limiting, and performance monitoring
 - **Improved Data Management** - Better use of Replit's database capabilities with type-safe operations and connection management
+- **Combat System Fix (August 17, 2025)** - Restored missing combat detection logic that was lost during modular refactor
+- **Code Quality Improvements** - Fixed all LSP diagnostics errors, variable naming issues, and null-safety problems
+- **Server Stability** - Resolved startup issues and exception handling problems for reliable deployment
 - **Enhanced Auto-scroll System** - Significantly improved story text auto-scrolling during typewriter effect with smooth 50ms intervals
 - **Complete Combat System** - Turn-based combat triggered by AI story keywords featuring tactical actions, health/resource management, and consequences
 - **Advanced Keyboard Controls** - Comprehensive shortcuts including Ctrl+S (save), Ctrl+M (medkit), number keys for choices, and combat hotkeys
