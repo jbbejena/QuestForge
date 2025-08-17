@@ -86,6 +86,11 @@ def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
     if len(full_story) < 800:
         return full_story
     
+    # Store full story in database before compression
+    session_id = get_session_id()
+    turn_count = session.get("turn_count", 0)
+    db.save_story_chunk(session_id, f"full_story_turn_{turn_count}", full_story)
+    
     # Extract key elements to preserve
     key_phrases = []
     story_lower = full_story.lower()
@@ -106,7 +111,28 @@ def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
         "squad", "enemy", "objective", "mission"
     ])
     
-    # Split story into sentences and score by relevance
+    # Use AI to create intelligent summary if available
+    if client:
+        summary_prompt = (
+            f"Compress this WWII mission story to under 400 words while preserving key plot points, "
+            f"character decisions, mission objectives, and current tactical situation. "
+            f"Key elements to preserve: {', '.join(key_phrases)}. "
+            f"Story: {full_story}"
+        )
+        
+        try:
+            ai_summary = ai_chat(
+                "You are an expert story editor. Create concise but complete summaries.",
+                summary_prompt,
+                temperature=0.3,
+                max_tokens=200
+            )
+            if len(ai_summary) < len(full_story) * 0.7:  # Only use if significantly shorter
+                return ai_summary
+        except Exception as e:
+            logging.warning(f"AI summary failed: {e}")
+    
+    # Fallback to original sentence-scoring method
     sentences = full_story.split('. ')
     scored_sentences = []
     
@@ -1041,21 +1067,121 @@ def make_choice():
                 session["story"] = new_full_story + "\n\nMISSION FAILED. Forced to retreat..."
                 return redirect(url_for("mission_complete"))
         
-        # Intelligent story management instead of aggressive truncation
-        if len(new_full_story) > 3000:  # Higher limit before summarization
-            # Create intelligent summary that preserves plot
+        # Hybrid session-database story management
+        if len(new_full_story) > 2500:  # Lower threshold with database backup
+            session_id = get_session_id()
+            
+            # Store full story in database before compression
+            db.save_story_chunk(session_id, f"full_story_turn_{turn_count}", new_full_story)
+            
+            # Create intelligent summary with key plot points
             mission = session.get("mission", {})
             player = session.get("player", {})
-            summarized_story = create_story_summary(new_full_story, mission, player)
             
-            # Keep the summary as base story, current choice as new content
+            # Extract key points for better summarization
+            key_points = [
+                player.get("name", ""),
+                player.get("class", ""),
+                mission.get("name", ""),
+                chosen_action[:50]  # Recent choice
+            ]
+            
+            # Use database method for compression
+            summarized_story = db.create_story_summary_db(session_id, new_full_story, key_points)
+            
+            # Keep minimal data in session
             session["base_story"] = summarized_story
             session["story"] = summarized_story + choice_result
+            session["story_compressed"] = True
+            session["story_turn_compressed"] = turn_count
             
-            # Log summarization for debugging
-            logging.info(f"Story summarized from {len(new_full_story)} to {len(summarized_story)} chars")
+            # Log compression statistics
+            compression_ratio = len(summarized_story) / len(new_full_story)
+
+
+@app.route("/recover_story", methods=["POST"])
+def recover_story():
+    """Recover full story from database if needed."""
+    try:
+        session_id = get_session_id()
+        turn_number = request.form.get("turn", session.get("turn_count", 0))
+        
+        # Try to recover full story from database
+        full_story = db.get_story_chunk(session_id, f"full_story_turn_{turn_number}")
+        
+        if full_story:
+            # Temporarily expand story for player review
+            session["story"] = full_story
+            session["story_recovered"] = True
+            
+            return jsonify({
+                "success": True,
+                "message": "Full story recovered from database",
+                "story_length": len(full_story)
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "No stored story found for this turn"
+            })
+            
+    except Exception as e:
+        logging.error(f"Story recovery error: {e}")
+        return jsonify({
+            "success": False,
+            "message": "Story recovery failed"
+        })
+
+@app.route("/story_analytics")
+def story_analytics():
+    """Show story compression analytics."""
+    if "player" not in session:
+        return redirect(url_for("index"))
+    
+    session_id = get_session_id()
+    
+    # Get compression statistics
+    analytics = {
+        "current_turn": session.get("turn_count", 0),
+        "story_compressed": session.get("story_compressed", False),
+        "compression_turn": session.get("story_turn_compressed", 0),
+        "session_story_length": len(session.get("story", "")),
+        "base_story_length": len(session.get("base_story", "")),
+        "available_chunks": []
+    }
+    
+    # Get available story chunks from database
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        if db.use_sqlite:
+            cursor.execute('''
+                SELECT chunk_id FROM story_chunks 
+                WHERE session_id = ? 
+                ORDER BY created_at DESC
+            ''', (session_id,))
+        else:
+            cursor.execute('''
+                SELECT chunk_id FROM story_chunks 
+                WHERE session_id = %s 
+                ORDER BY created_at DESC
+            ''', (session_id,))
+        
+        results = cursor.fetchall()
+        analytics["available_chunks"] = [row[0] if db.use_sqlite else row['chunk_id'] for row in results]
+        conn.close()
+        
+    except Exception as e:
+        logging.error(f"Analytics error: {e}")
+    
+    return jsonify(analytics)
+
+
+            logging.info(f"Story compressed: {len(new_full_story)} -> {len(summarized_story)} chars ({compression_ratio:.2%})")
         else:
             session["story"] = new_full_story
+            session["story_compressed"] = False
         
         # Enhanced story history with key plot points
         story_history = session.get("story_history", [])

@@ -430,6 +430,157 @@ class GameDatabase:
             logging.error(f"Error getting story history: {e}")
             return []
     
+    def save_story_chunk(self, session_id: str, chunk_id: str, content: str):
+        """Save large story content in chunks."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            if self.use_sqlite:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS story_chunks (
+                        session_id TEXT,
+                        chunk_id TEXT,
+                        content TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (session_id, chunk_id)
+                    )
+                ''')
+                cursor.execute('''
+                    INSERT OR REPLACE INTO story_chunks 
+                    (session_id, chunk_id, content) 
+                    VALUES (?, ?, ?)
+                ''', (session_id, chunk_id, content))
+            else:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS story_chunks (
+                        session_id VARCHAR(255),
+                        chunk_id VARCHAR(255),
+                        content TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (session_id, chunk_id)
+                    )
+                ''')
+                cursor.execute('''
+                    INSERT INTO story_chunks 
+                    (session_id, chunk_id, content) 
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (session_id, chunk_id) DO UPDATE SET
+                    content = EXCLUDED.content,
+                    created_at = CURRENT_TIMESTAMP
+                ''', (session_id, chunk_id, content))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logging.error(f"Error saving story chunk: {e}")
+    
+    def get_story_chunk(self, session_id: str, chunk_id: str) -> str:
+        """Retrieve story chunk by ID."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            if self.use_sqlite:
+                cursor.execute('''
+                    SELECT content FROM story_chunks 
+                    WHERE session_id = ? AND chunk_id = ?
+                ''', (session_id, chunk_id))
+            else:
+                cursor.execute('''
+                    SELECT content FROM story_chunks 
+                    WHERE session_id = %s AND chunk_id = %s
+                ''', (session_id, chunk_id))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                return result[0] if self.use_sqlite else result['content']
+            return ""
+        except Exception as e:
+            logging.error(f"Error getting story chunk: {e}")
+            return ""
+    
+    def create_story_summary_db(self, session_id: str, full_content: str, key_points: list) -> str:
+        """Create and store intelligent story summaries."""
+        try:
+            # Extract key sentences based on importance scoring
+            sentences = full_content.split('. ')
+            important_sentences = []
+            
+            for sentence in sentences:
+                score = 0
+                sentence_lower = sentence.lower()
+                
+                # Score based on key points
+                for point in key_points:
+                    if point.lower() in sentence_lower:
+                        score += 2
+                
+                # Score tactical content
+                if any(word in sentence_lower for word in ["chose", "decided", "attack", "mission", "objective"]):
+                    score += 1
+                
+                if score > 0:
+                    important_sentences.append((score, sentence))
+            
+            # Sort by importance and take top sentences
+            important_sentences.sort(key=lambda x: x[0], reverse=True)
+            summary_sentences = [s[1] for s in important_sentences[:8]]
+            
+            # Ensure narrative flow by keeping first and last sentences
+            if sentences:
+                if sentences[0] not in summary_sentences:
+                    summary_sentences = [sentences[0]] + summary_sentences[:7]
+                if sentences[-1] not in summary_sentences:
+                    summary_sentences = summary_sentences[:7] + [sentences[-1]]
+            
+            summary = '. '.join(summary_sentences)
+            
+            # Store the summary
+            self.save_story_chunk(session_id, "current_summary", summary)
+            
+            return summary
+        except Exception as e:
+            logging.error(f"Error creating story summary: {e}")
+            return full_content[:1000]  # Fallback truncation
+    
+    def get_compressed_story_context(self, session_id: str, max_length: int = 2000) -> str:
+        """Get compressed story context for AI generation."""
+        try:
+            # Get recent story history
+            recent_history = self.get_story_history(session_id, limit=3)
+            
+            # Get stored summary if available
+            summary = self.get_story_chunk(session_id, "current_summary")
+            
+            # Combine summary with recent history
+            context_parts = []
+            
+            if summary:
+                context_parts.append(f"Previous events: {summary}")
+            
+            if recent_history:
+                recent_actions = []
+                for entry in recent_history[-2:]:  # Last 2 actions
+                    if entry['choice']:
+                        recent_actions.append(f"Action: {entry['choice']}")
+                
+                if recent_actions:
+                    context_parts.append(f"Recent actions: {' -> '.join(recent_actions)}")
+            
+            full_context = "\n\n".join(context_parts)
+            
+            # Truncate if still too long
+            if len(full_context) > max_length:
+                full_context = full_context[:max_length] + "..."
+            
+            return full_context
+        except Exception as e:
+            logging.error(f"Error getting compressed context: {e}")
+            return ""
+    
     def cleanup_old_sessions(self, days_old: int = 7):
         """Clean up old game sessions."""
         try:
