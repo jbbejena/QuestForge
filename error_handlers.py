@@ -5,9 +5,10 @@ Centralized error handling and recovery mechanisms
 
 import logging
 from flask import session, redirect, url_for, render_template, jsonify
-from typing import Dict, Any, Optional
+from werkzeug.wrappers import Response
+from typing import Dict, Any, Optional, Union
 
-def handle_session_error(error: Exception, fallback_route: str = "index") -> str:
+def handle_session_error(error: Exception, fallback_route: str = "index") -> Response:
     """Handle session-related errors with graceful recovery."""
     logging.error(f"Session error: {error}")
     
@@ -28,7 +29,7 @@ def handle_database_error(error: Exception, operation: str = "database operation
         "operation": operation
     }
 
-def handle_ai_error(error: Exception, fallback_content: str = None) -> str:
+def handle_ai_error(error: Exception, fallback_content: Optional[str] = None) -> str:
     """Handle AI service errors with fallback content."""
     logging.warning(f"AI service error: {error}")
     
@@ -52,7 +53,7 @@ def validate_player_session() -> Optional[str]:
     
     return None
 
-def safe_session_get(key: str, default: Any = None, validate_type: type = None) -> Any:
+def safe_session_get(key: str, default: Any = None, validate_type: Optional[type] = None) -> Any:
     """Safely get session data with type validation."""
     try:
         value = session.get(key, default)
@@ -92,7 +93,7 @@ def cleanup_session_data():
     except Exception as e:
         logging.error(f"Error during session cleanup: {e}")
 
-def create_error_response(error_type: str, message: str, details: Dict[str, Any] = None) -> Dict[str, Any]:
+def create_error_response(error_type: str, message: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Create standardized error response."""
     response = {
         "success": False,
@@ -157,7 +158,7 @@ class GameStateValidator:
         
         return mission
 
-def recovery_mode_handler(error: Exception) -> str:
+def recovery_mode_handler(error: Exception) -> Response:
     """Handle critical errors by entering recovery mode."""
     logging.critical(f"Entering recovery mode due to: {error}")
     

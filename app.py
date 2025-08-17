@@ -5,6 +5,14 @@ import logging
 import sys
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from dotenv import load_dotenv
+
+# Import new modular components
+from config import (
+    RANKS, CLASSES, WEAPONS, INITIAL_MISSION, DIFFICULTY_SETTINGS,
+    SESSION_CONFIG, AI_CONFIG, get_env_config, get_ai_prompt_templates
+)
+from session_manager import session_manager
+from story_manager import story_manager
 from database import db, is_replit_database_available
 from achievements import (
     check_achievements, get_achievement_display, initialize_player_stats, 
@@ -26,8 +34,12 @@ from performance_utils import (
     batch_session_updates, cache_ai_response, get_cached_ai_response
 )
 
-# Configure logging for better debugging
-logging.basicConfig(level=logging.DEBUG)
+# Configure enhanced logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 try:
     from openai import OpenAI
 except ImportError:
@@ -37,28 +49,27 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-# Configuration
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# Get configuration from config module
+env_config = get_env_config()
+OPENAI_API_KEY = env_config["openai_api_key"]
+
+# Initialize Flask app with configuration
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
-app.permanent_session_lifetime = 86400  # 24 hours
+app.secret_key = env_config["session_secret"]
+app.permanent_session_lifetime = SESSION_CONFIG["permanent_session_lifetime"]
 app.config['SESSION_PERMANENT'] = True
 
-# Initialize OpenAI client
+# Initialize OpenAI client and connect to story manager
 client = None
 if OPENAI_API_KEY and OpenAI is not None:
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
-        logging.info("OpenAI client initialized successfully")
+        story_manager.client = client  # Connect AI client to story manager
+        logging.info("OpenAI client initialized and connected to story manager")
     except Exception as e:
         logging.error(f"OpenAI initialization error: {e}")
 else:
     logging.warning("OpenAI API key not found or OpenAI not installed")
-
-# Game configuration data  
-RANKS = ["Private", "Corporal", "Sergeant", "Lieutenant", "Captain"]
-CLASSES = ["Rifleman", "Medic", "Gunner", "Sniper", "Demolitions"] 
-WEAPONS = ["Rifle", "SMG", "LMG", "Sniper Rifle", "Shotgun"]
 
 # Campaign starts with D-Day
 INITIAL_MISSION = {
@@ -72,13 +83,8 @@ INITIAL_MISSION = {
 
 def create_story_summary_legacy(full_story: str, mission: dict, player: dict) -> str:
     """Create an intelligent summary that preserves key plot points."""
-    if len(full_story) < 800:
-        return full_story
-    
-    # Store full story in database before compression
-    session_id = get_session_id()
-    turn_count = session.get("turn_count", 0)
-    db.save_story_chunk(session_id, f"full_story_turn_{turn_count}", full_story)
+    # Use the new story manager for better story summarization
+    return story_manager.create_story_summary(full_story, mission, player)
     
     # Extract key elements to preserve
     key_phrases = []
@@ -633,8 +639,8 @@ def start_mission():
     session["story_history"] = []
     session["mission_phase"] = "start"  # start, middle, climax, end
     
-    # Clean up session before starting new mission
-    cleanup_session()
+    # Use enhanced session management
+    session_manager.auto_cleanup()
     
     # Mission briefing reward
     resources = session.get("resources", {})
@@ -860,7 +866,13 @@ def make_choice():
             f"Continue the story showing what happens after this choice."
         )
         
-        new_content = ai_chat(system_msg, user_prompt)
+        # Use story manager for story generation if available
+        if hasattr(story_manager, 'generate_story_continuation'):
+            new_content = story_manager.generate_story_continuation(
+                mission, player, story, chosen_action
+            )
+        else:
+            new_content = ai_chat(system_msg, user_prompt)
         logging.info(f"Generated content: {new_content[:200]}...")
         
         # Check for success indicators in AI response after generation
