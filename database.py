@@ -1,10 +1,10 @@
-
 import os
 import json
 import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
+import sqlite3
 
 class GameDatabase:
     def __init__(self):
@@ -23,8 +23,10 @@ class GameDatabase:
         """Get database connection based on available database type."""
         if self.use_sqlite:
             import sqlite3
-
-            return sqlite3.connect(self.db_path)
+            # Set row_factory for dictionary-like access
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            return conn
         else:
             return psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
     
@@ -163,11 +165,7 @@ class GameDatabase:
                     INSERT OR REPLACE INTO players 
                     (session_id, player_data, resources, updated_at) 
                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                ''', (
-                    session_id,
-                    json.dumps(player_data),
-                    json.dumps(resources)
-                ))
+                ''', (session_id, json.dumps(player_data), json.dumps(resources)))
             else:
                 cursor.execute('''
                     INSERT INTO players 
@@ -177,11 +175,7 @@ class GameDatabase:
                     player_data = EXCLUDED.player_data,
                     resources = EXCLUDED.resources,
                     updated_at = CURRENT_TIMESTAMP
-                ''', (
-                    session_id,
-                    json.dumps(player_data),
-                    json.dumps(resources)
-                ))
+                ''', (session_id, json.dumps(player_data), json.dumps(resources)))
             
             conn.commit()
             conn.close()
@@ -209,8 +203,10 @@ class GameDatabase:
             conn.close()
             
             if result:
+                # Type-safe row access for both database types
                 if self.use_sqlite:
-                    return (json.loads(result[0]), json.loads(result[1]))
+                    row = dict(result)  # Convert sqlite3.Row to dict for type safety
+                    return (json.loads(row['player_data']), json.loads(row['resources']))
                 else:
                     return (json.loads(result['player_data']), json.loads(result['resources']))
             return None
@@ -293,14 +289,16 @@ class GameDatabase:
             conn.close()
             
             if result:
+                # Type-safe row access for both database types
                 if self.use_sqlite:
+                    row = dict(result)
                     return {
-                        'mission_data': json.loads(result[0]) if result[0] else None,
-                        'story_data': json.loads(result[1]),
-                        'turn_count': result[2],
-                        'score': result[3],
-                        'completed_missions': json.loads(result[4]),
-                        'player_stats': json.loads(result[5])
+                        'mission_data': json.loads(row['mission_data']) if row['mission_data'] else None,
+                        'story_data': json.loads(row['story_data']),
+                        'turn_count': row['turn_count'],
+                        'score': row['score'],
+                        'completed_missions': json.loads(row['completed_missions']),
+                        'player_stats': json.loads(row['player_stats'])
                     }
                 else:
                     return {
@@ -373,7 +371,8 @@ class GameDatabase:
             context_parts = []
             for row in reversed(results):
                 if self.use_sqlite:
-                    choice, content = row[0], row[1]
+                    row_dict = dict(row)
+                    choice, content = row_dict['choice_made'], row_dict['story_content']
                 else:
                     choice, content = row['choice_made'], row['story_content']
                 content_summary = content[:200].replace('\n', ' ')
@@ -413,10 +412,11 @@ class GameDatabase:
             history = []
             for row in reversed(results):
                 if self.use_sqlite:
+                    row_dict = dict(row)
                     history.append({
-                        'turn': row[0],
-                        'choice': row[1],
-                        'content': row[2]
+                        'turn': row_dict['turn_number'],
+                        'choice': row_dict['choice_made'],
+                        'content': row_dict['story_content']
                     })
                 else:
                     history.append({
@@ -496,7 +496,10 @@ class GameDatabase:
             conn.close()
             
             if result:
-                return result[0] if self.use_sqlite else result['content']
+                if self.use_sqlite:
+                    return dict(result)['content']
+                else:
+                    return result['content']
             return ""
         except Exception as e:
             logging.error(f"Error getting story chunk: {e}")
@@ -529,99 +532,26 @@ class GameDatabase:
             important_sentences.sort(key=lambda x: x[0], reverse=True)
             summary_sentences = [s[1] for s in important_sentences[:8]]
             
-            # Ensure narrative flow by keeping first and last sentences
-            if sentences:
-                if sentences[0] not in summary_sentences:
-                    summary_sentences = [sentences[0]] + summary_sentences[:7]
-                if sentences[-1] not in summary_sentences:
-                    summary_sentences = summary_sentences[:7] + [sentences[-1]]
-            
+            # Build coherent summary with bridging text
             summary = '. '.join(summary_sentences)
             
-            # Store the summary
+            # Save the summarized version
             self.save_story_chunk(session_id, "current_summary", summary)
             
             return summary
+            
         except Exception as e:
             logging.error(f"Error creating story summary: {e}")
-            return full_content[:1000]  # Fallback truncation
-    
-    def get_compressed_story_context(self, session_id: str, max_length: int = 2000) -> str:
-        """Get compressed story context for AI generation."""
-        try:
-            # Get recent story history
-            recent_history = self.get_story_history(session_id, limit=3)
-            
-            # Get stored summary if available
-            summary = self.get_story_chunk(session_id, "current_summary")
-            
-            # Combine summary with recent history
-            context_parts = []
-            
-            if summary:
-                context_parts.append(f"Previous events: {summary}")
-            
-            if recent_history:
-                recent_actions = []
-                for entry in recent_history[-2:]:  # Last 2 actions
-                    if entry['choice']:
-                        recent_actions.append(f"Action: {entry['choice']}")
-                
-                if recent_actions:
-                    context_parts.append(f"Recent actions: {' -> '.join(recent_actions)}")
-            
-            full_context = "\n\n".join(context_parts)
-            
-            # Truncate if still too long
-            if len(full_context) > max_length:
-                full_context = full_context[:max_length] + "..."
-            
-            return full_context
-        except Exception as e:
-            logging.error(f"Error getting compressed context: {e}")
-            return ""
-    
-    def cleanup_old_sessions(self, days_old: int = 7):
-        """Clean up old game sessions."""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            if self.use_sqlite:
-                cursor.execute('''
-                    DELETE FROM players 
-                    WHERE created_at < datetime('now', '-{} days')
-                '''.format(days_old))
-                
-                cursor.execute('''
-                    DELETE FROM game_sessions 
-                    WHERE created_at < datetime('now', '-{} days')
-                '''.format(days_old))
-                
-                cursor.execute('''
-                    DELETE FROM story_history 
-                    WHERE created_at < datetime('now', '-{} days')
-                '''.format(days_old))
-            else:
-                cursor.execute('''
-                    DELETE FROM players 
-                    WHERE created_at < NOW() - INTERVAL '%s days'
-                ''', (days_old,))
-                
-                cursor.execute('''
-                    DELETE FROM game_sessions 
-                    WHERE created_at < NOW() - INTERVAL '%s days'
-                ''', (days_old,))
-                
-                cursor.execute('''
-                    DELETE FROM story_history 
-                    WHERE created_at < NOW() - INTERVAL '%s days'
-                ''', (days_old,))
-            
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logging.error(f"Error cleaning up old sessions: {e}")
+            return full_content[:500]  # Fallback truncation
 
-# Global database instance
+# Create a database instance
 db = GameDatabase()
+
+# Utility functions for easy access to Replit Database
+def get_database_url():
+    """Get the Replit Database URL if available."""
+    return os.environ.get('DATABASE_URL')
+
+def is_replit_database_available():
+    """Check if Replit Database is configured and available."""
+    return bool(os.environ.get('DATABASE_URL'))

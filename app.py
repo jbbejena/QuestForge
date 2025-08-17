@@ -5,10 +5,25 @@ import logging
 import sys
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from dotenv import load_dotenv
-from database import db
+from database import db, is_replit_database_available
 from achievements import (
     check_achievements, get_achievement_display, initialize_player_stats, 
     update_player_stats, ACHIEVEMENTS
+)
+from game_logic import (
+    get_session_id, resolve_combat_encounter, detect_mission_outcome,
+    extract_choices_from_story, validate_game_state, calculate_mission_score,
+    get_fallback_story, COMBAT_KEYWORDS, SUCCESS_KEYWORDS, FAILURE_KEYWORDS
+)
+from mission_generator import generate_next_mission, get_mission_briefing_context
+from error_handlers import (
+    handle_session_error, handle_database_error, handle_ai_error,
+    validate_player_session, safe_session_get, cleanup_session_data,
+    GameStateValidator
+)
+from performance_utils import (
+    perf_monitor, SessionCache, optimize_session_size, 
+    batch_session_updates, cache_ai_response, get_cached_ai_response
 )
 
 # Configure logging for better debugging
@@ -40,48 +55,22 @@ if OPENAI_API_KEY and OpenAI is not None:
 else:
     logging.warning("OpenAI API key not found or OpenAI not installed")
 
-# Game configuration data
+# Game configuration data  
 RANKS = ["Private", "Corporal", "Sergeant", "Lieutenant", "Captain"]
-CLASSES = ["Rifleman", "Medic", "Gunner", "Sniper", "Demolitions"]
+CLASSES = ["Rifleman", "Medic", "Gunner", "Sniper", "Demolitions"] 
 WEAPONS = ["Rifle", "SMG", "LMG", "Sniper Rifle", "Shotgun"]
 
-# Campaign starts with D-Day, subsequent missions are AI-generated
+# Campaign starts with D-Day
 INITIAL_MISSION = {
-    "name": "Operation Overlord - D-Day", 
-    "desc": "Storm the beaches of Normandy with your squad. The fate of Europe hangs in the balance.", 
+    "name": "Operation Overlord - D-Day",
+    "desc": "Storm the beaches of Normandy with your squad. The fate of Europe hangs in the balance.",
     "difficulty": "Hard",
-    "location": "Omaha Beach, Normandy",
+    "location": "Omaha Beach, Normandy", 
     "date": "June 6, 1944",
     "is_campaign_start": True
 }
 
-# Keep original missions for fallback
-MISSIONS = [
-    INITIAL_MISSION,  # D-Day is always first
-]
-
-# Mission success/failure keywords for detection
-MISSION_SUCCESS_KEYWORDS = [
-    "mission accomplished", "objective complete", "mission successful", "victory",
-    "objective secured", "target destroyed", "successfully completed", "mission complete",
-    "beach secured", "objective achieved", "successfully infiltrated", "enemy eliminated"
-]
-
-MISSION_FAILURE_KEYWORDS = [
-    "mission failed", "retreat", "objective lost", "defeated", "overwhelmed",
-    "forced to withdraw", "mission aborted", "casualty rate too high", "squad eliminated",
-    "captured", "surrounded", "no survivors"
-]
-
-# Combat keywords for detecting battle scenarios
-SURPRISE_COMBAT_KEYWORDS = [
-    "combat", "ambush", "ambushed", "attack begins", "sudden attack", "under fire",
-    "opens fire", "open fire", "firefight", "enemy fires", "battle erupts",
-    "exchange of gunfire", "hostilities commence", "start shooting", "start firing",
-    "enemy spotted", "take cover", "incoming fire", "gunshots ring out"
-]
-
-def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
+def create_story_summary_legacy(full_story: str, mission: dict, player: dict) -> str:
     """Create an intelligent summary that preserves key plot points."""
     if len(full_story) < 800:
         return full_story
@@ -189,93 +178,9 @@ def create_story_summary(full_story: str, mission: dict, player: dict) -> str:
     
     return summary
 
-def generate_next_mission():
-    """Generate the next mission in the campaign based on previous outcomes."""
-    campaign = session.get("campaign", {})
-    completed = campaign.get("completed_missions", [])
-    current_date = campaign.get("campaign_date", "June 6, 1944")
-    
-    # Build context from previous missions
-    context = f"Previous missions completed: {len(completed)}. Current date: {current_date}."
-    if completed:
-        last_mission = completed[-1]
-        context += f" Last mission: {last_mission.get('name', 'Unknown')} - {last_mission.get('outcome', 'completed')}."
-    
-    system_msg = (
-        "You are a WWII campaign mission generator. Create the next logical mission "
-        "following D-Day and previous missions. Generate realistic WWII operations "
-        "that progress the Allied advance through Europe. Consider historical accuracy, "
-        "tactical progression, and narrative continuity."
-    )
-    
-    user_prompt = (
-        f"{context}\n\n"
-        "Generate the next mission with this EXACT format:\n"
-        "NAME: [Mission name]\n"
-        "LOCATION: [Specific location]\n"
-        "DATE: [Date in format Month Day, Year]\n"
-        "OBJECTIVE: [Clear military objective in one sentence]\n"
-        "DIFFICULTY: [Easy/Medium/Hard]\n"
-        "DESCRIPTION: [2-3 sentence briefing]"
-    )
-    
-    response = ai_chat(system_msg, user_prompt, temperature=0.7, max_tokens=200)
-    
-    # Parse the response
-    mission = {
-        "name": "Liberation Mission",
-        "desc": "Continue the Allied advance through France.",
-        "difficulty": "Medium",
-        "location": "Northern France",
-        "date": "June 7, 1944"
-    }
-    
-    try:
-        lines = response.split('\n')
-        for line in lines:
-            if line.startswith("NAME:"):
-                mission["name"] = line.replace("NAME:", "").strip()
-            elif line.startswith("LOCATION:"):
-                mission["location"] = line.replace("LOCATION:", "").strip()
-            elif line.startswith("DATE:"):
-                mission["date"] = line.replace("DATE:", "").strip()
-                campaign["campaign_date"] = mission["date"]
-            elif line.startswith("OBJECTIVE:"):
-                mission["objective"] = line.replace("OBJECTIVE:", "").strip()
-            elif line.startswith("DIFFICULTY:"):
-                mission["difficulty"] = line.replace("DIFFICULTY:", "").strip()
-            elif line.startswith("DESCRIPTION:"):
-                mission["desc"] = line.replace("DESCRIPTION:", "").strip()
-    except:
-        pass  # Use defaults if parsing fails
-    
-    session["campaign"] = campaign
-    return mission
+# Mission generation function moved to mission_generator.py
 
-def detect_mission_outcome(story_content):
-    """Detect if a mission succeeded or failed based on story content."""
-    story_lower = story_content.lower()
-    
-    # Check for explicit success indicators
-    for keyword in MISSION_SUCCESS_KEYWORDS:
-        if keyword in story_lower:
-            return "success"
-    
-    # Check for failure indicators
-    for keyword in MISSION_FAILURE_KEYWORDS:
-        if keyword in story_lower:
-            return "failure"
-    
-    # Check turn count - if mission goes on too long, check for resolution
-    turn_count = session.get("turn_count", 0)
-    if turn_count >= 7:
-        # Look for resolution indicators
-        if any(word in story_lower for word in ["secured", "completed", "achieved", "accomplished"]):
-            return "success"
-        elif any(word in story_lower for word in ["failed", "lost", "retreat", "withdrawn"]):
-            return "failure"
-    
-    return None  # Mission still in progress
+# Mission outcome detection moved to game_logic.py
 
 def ai_chat(system_msg: str, user_prompt: str, temperature: float = 0.8, max_tokens: int = 700) -> str:
     """
@@ -530,60 +435,7 @@ def generate_dynamic_consequences(chosen_action: str, player: dict, resources: d
     
     return " ".join(events) if events else ""
 
-def resolve_combat_encounter(player: dict, chosen_action: str, mission: dict) -> dict:
-    """Resolve combat encounters with detailed outcomes."""
-    player_class = player.get("class", "Rifleman")
-    difficulty = mission.get("difficulty", "Medium")
-    
-    # Base combat stats
-    base_success_chance = 0.6
-    base_damage = 15
-    
-    # Class bonuses
-    class_modifiers = {
-        "Gunner": {"success": 0.8, "damage_reduction": 0.7, "ammo_cost": 2},
-        "Sniper": {"success": 0.9, "damage_reduction": 0.5, "ammo_cost": 1},
-        "Rifleman": {"success": 0.7, "damage_reduction": 0.8, "ammo_cost": 1},
-        "Medic": {"success": 0.5, "damage_reduction": 0.9, "ammo_cost": 1},
-        "Demolitions": {"success": 0.6, "damage_reduction": 0.6, "ammo_cost": 3}
-    }
-    
-    modifier = class_modifiers.get(player_class, class_modifiers["Rifleman"])
-    
-    # Difficulty adjustments
-    difficulty_mods = {"Easy": 0.2, "Medium": 0.0, "Hard": -0.2}
-    success_chance = base_success_chance + difficulty_mods.get(difficulty, 0.0) + (modifier["success"] - 0.6)
-    
-    # Action-based modifiers
-    action_lower = chosen_action.lower()
-    if "stealth" in action_lower or "sneak" in action_lower:
-        success_chance += 0.2
-    elif "charge" in action_lower or "assault" in action_lower:
-        success_chance -= 0.1
-        base_damage += 5
-    
-    victory = random.random() < success_chance
-    damage_taken = 0 if victory else int(base_damage * modifier["damage_reduction"])
-    
-    if victory:
-        descriptions = [
-            f"Your {player_class.lower()} training pays off - enemy neutralized!",
-            "Superior tactics lead to a decisive victory!",
-            "Enemy forces are quickly overwhelmed by your assault!"
-        ]
-    else:
-        descriptions = [
-            f"The enemy puts up fierce resistance! You take {damage_taken} damage.",
-            f"Combat is brutal - you're wounded but fighting continues! -{damage_taken} health.",
-            f"Enemy fire finds its mark! You suffer {damage_taken} damage but press on."
-        ]
-    
-    return {
-        "victory": victory,
-        "damage": damage_taken,
-        "ammo_used": modifier["ammo_cost"],
-        "description": random.choice(descriptions)
-    }
+# Combat function moved to game_logic.py
         
     
 
@@ -1097,6 +949,18 @@ def make_choice():
             
             # Log compression statistics
             compression_ratio = len(summarized_story) / len(new_full_story)
+            logging.info(f"Story compressed: {len(new_full_story)} -> {len(summarized_story)} chars (ratio: {compression_ratio:.2f})")
+        
+        else:
+            # Keep normal session-based story management
+            session["story"] = new_full_story
+            session["base_story"] = base_story
+    
+    except Exception as e:
+        logging.error(f"Error in story management: {e}")
+        # Fallback to simple story management
+        session["story"] = new_full_story
+        session["base_story"] = base_story
 
 
 @app.route("/recover_story", methods=["POST"])
@@ -1176,88 +1040,6 @@ def story_analytics():
         logging.error(f"Analytics error: {e}")
     
     return jsonify(analytics)
-
-
-            logging.info(f"Story compressed: {len(new_full_story)} -> {len(summarized_story)} chars ({compression_ratio:.2%})")
-        else:
-            session["story"] = new_full_story
-            session["story_compressed"] = False
-        
-        # Enhanced story history with key plot points
-        story_history = session.get("story_history", [])
-        story_entry = {
-            "turn": turn_count,
-            "choice": chosen_action,
-            "content": new_content[:500],  # Store more content for context
-            "type": "continuation",
-            "mission_phase": session.get("mission_phase", "middle")
-        }
-        story_history.append(story_entry)
-        
-        # Keep more history but compress older entries
-        if len(story_history) > 6:
-            # Compress older entries to just key info
-            compressed_history = []
-            for i, entry in enumerate(story_history):
-                if i < len(story_history) - 4:  # Compress all but last 4
-                    compressed_entry = {
-                        "turn": entry["turn"],
-                        "choice": entry["choice"][:100],  # Keep choice summary
-                        "content": "...",  # Remove content
-                        "type": "compressed"
-                    }
-                    compressed_history.append(compressed_entry)
-                else:
-                    compressed_history.append(entry)
-            session["story_history"] = compressed_history
-        else:
-            session["story_history"] = story_history
-        
-        # Enhanced combat system
-        if any(keyword in new_content.lower() for keyword in SURPRISE_COMBAT_KEYWORDS):
-            combat_result = resolve_combat_encounter(player, chosen_action, mission)
-            if combat_result["victory"]:
-                session["battles_won"] = session.get("battles_won", 0) + 1
-                player_stats = session.get("player_stats", initialize_player_stats())
-                session["player_stats"] = update_player_stats(player_stats, "combat_victory")
-                story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
-            else:
-                story += f"\n\nCOMBAT RESULT: {combat_result['description']}"
-            
-            # Apply combat consequences
-            player["health"] = max(0, player.get("health", 100) - combat_result.get("damage", 0))
-            resources["ammo"] = max(0, resources.get("ammo", 0) - combat_result.get("ammo_used", 1))
-        
-        # Auto-save game state with size monitoring
-        session["player"] = player
-        session["resources"] = resources
-        session.permanent = True
-        
-        # Monitor and clean up session size
-        try:
-            import sys
-            session_size = sys.getsizeof(str(session))
-            if session_size > 3500:  # Approaching cookie limit
-                logging.warning(f"Session size approaching limit: {session_size} bytes")
-                # Emergency cleanup of oldest non-essential data
-                if "story_history" in session and len(session["story_history"]) > 2:
-                    session["story_history"] = session["story_history"][-2:]
-        except Exception as e:
-            logging.error(f"Session size check failed: {e}")
-        
-        return redirect(url_for("play"))
-        
-    except Exception as e:
-        logging.error(f"Error in make_choice: {e}")
-        # Try to recover gracefully
-        try:
-            # Reset to a safe state
-            session["story"] = session.get("base_story", "Mission continues...")
-            session["new_content"] = "The situation develops rapidly. You must make a tactical decision."
-            return redirect(url_for("play"))
-        except:
-            # Last resort - return to mission menu
-            return redirect(url_for("mission_menu"))
 
 def complete_mission(story):
     """Handle enhanced mission completion with dynamic outcomes."""

@@ -6,6 +6,11 @@ This is a mobile-optimized, text-based WWII adventure game built with Flask. Pla
 
 ## Recent Changes (August 2025)
 
+- **Modular Architecture Refactor** - Split monolithic 1500+ line app.py into focused modules: game_logic.py, mission_generator.py, error_handlers.py, and performance_utils.py
+- **Database Type Safety** - Fixed 30+ SQLite/PostgreSQL type errors with proper row access patterns for both database systems
+- **Enhanced Error Handling** - Centralized error recovery, session validation, and graceful degradation patterns
+- **Performance Optimizations** - Added session caching, story compression, rate limiting, and performance monitoring
+- **Improved Data Management** - Better use of Replit's database capabilities with type-safe operations and connection management
 - **Enhanced Auto-scroll System** - Significantly improved story text auto-scrolling during typewriter effect with smooth 50ms intervals
 - **Complete Combat System** - Turn-based combat triggered by AI story keywords featuring tactical actions, health/resource management, and consequences
 - **Advanced Keyboard Controls** - Comprehensive shortcuts including Ctrl+S (save), Ctrl+M (medkit), number keys for choices, and combat hotkeys
@@ -27,11 +32,17 @@ Preferred communication style: Simple, everyday language.
 - **Progressive Enhancement**: Core functionality works without JavaScript, enhanced experience with JS enabled
 
 ### Backend Architecture
-- **Framework**: Flask web application with session-based state management
-- **Architecture Pattern**: Route-based MVC structure with template rendering and in-memory data storage
-- **Game Logic**: Turn-based gameplay with character creation, mission selection, combat mechanics, and achievement tracking
-- **AI Integration**: Optional OpenAI API integration for dynamic story generation with graceful fallback to static content
-- **Session Management**: Flask sessions for maintaining player state, game progress, and statistics across requests
+- **Framework**: Flask web application with session-based state management and modular architecture
+- **Architecture Pattern**: Modularized MVC structure with separated concerns across focused modules
+  - **game_logic.py**: Core gameplay functions, combat resolution, mission outcomes
+  - **mission_generator.py**: Dynamic mission creation and campaign progression
+  - **error_handlers.py**: Centralized error handling and session management
+  - **performance_utils.py**: Caching, compression, and performance monitoring
+  - **database.py**: Type-safe database operations supporting both SQLite and PostgreSQL
+  - **achievements.py**: Player progression and trivia unlock system
+- **Game Logic**: Turn-based gameplay with enhanced combat mechanics, mission selection, and achievement tracking
+- **AI Integration**: Optional OpenAI API integration for dynamic story generation with intelligent caching and graceful fallback
+- **Session Management**: Enhanced Flask sessions with size optimization, validation, and cleanup mechanisms
 
 ### Data Storage Solutions
 - **Session Storage**: Flask sessions store player data, game state, and progress (no persistent database)
