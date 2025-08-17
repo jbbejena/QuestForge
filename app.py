@@ -955,12 +955,25 @@ def make_choice():
             # Keep normal session-based story management
             session["story"] = new_full_story
             session["base_story"] = base_story
+        
+        # Update session and save to database
+        session["player"] = player
+        session["resources"] = resources
+        save_to_database()
+        
+        return redirect(url_for("play"))
     
     except Exception as e:
         logging.error(f"Error in story management: {e}")
         # Fallback to simple story management
-        session["story"] = new_full_story
-        session["base_story"] = base_story
+        try:
+            session["story"] = new_full_story
+            session["base_story"] = base_story
+        except:
+            session["story"] = "Mission continues..."
+        
+        # Ensure we always return a response
+        return redirect(url_for("play"))
 
 
 @app.route("/recover_story", methods=["POST"])
