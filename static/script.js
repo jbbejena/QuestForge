@@ -169,7 +169,10 @@ function initializeGameActions() {
 
 // Combat System Implementation
 function initializeCombatSystem() {
-    // Check if combat is triggered in the story
+    // Check if combat is pending from backend
+    checkForPendingCombat();
+    
+    // Also check if combat is triggered in the story content
     const storyContent = document.querySelector('#story-content, #new-content, #full-story');
     if (storyContent) {
         const story = storyContent.textContent.toLowerCase();
@@ -182,6 +185,23 @@ function initializeCombatSystem() {
             }, 2000);
         }
     }
+}
+
+function checkForPendingCombat() {
+    // Check if backend has flagged combat as pending
+    fetch('/check_combat_status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.combat_pending) {
+                // Combat is pending - trigger combat modal immediately
+                setTimeout(() => {
+                    triggerCombatEncounter();
+                }, 1000);
+            }
+        })
+        .catch(error => {
+            console.log('Combat status check failed:', error);
+        });
 }
 
 function triggerCombatEncounter() {
@@ -1179,29 +1199,40 @@ function endCombat(outcome) {
     .then(data => {
         if (data.success) {
             showNotification(data.message, outcome === 'victory' ? 'success' : 'warning');
+            
+            // Close combat modal
+            setTimeout(() => {
+                const modal = document.getElementById('combatModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            }, 1500);
+            
+            // Handle post-combat navigation based on backend response
+            setTimeout(() => {
+                if (outcome === 'defeat') {
+                    window.location.href = '/game_over';
+                } else if (data.redirect_to_play) {
+                    // Backend wants us to continue story - redirect to play
+                    window.location.href = '/play';
+                } else {
+                    // Default behavior - reload page
+                    location.reload();
+                }
+            }, 2000);
         }
     })
     .catch(error => {
         console.error('Combat result error:', error);
-    });
-    
-    // Close combat modal and integrate results into story
-    setTimeout(() => {
-        const modal = document.getElementById('combatModal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-        
-        // Refresh page to show updated story with combat results
-        if (outcome !== 'defeat') {
+        // Fallback - close modal and reload on error
+        setTimeout(() => {
+            const modal = document.getElementById('combatModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
             location.reload();
-        } else {
-            // Handle defeat
-            setTimeout(() => {
-                window.location.href = '/game_over';
-            }, 2000);
-        }
-    }, 3000);
+        }, 1500);
+    });
 }
 
 function attemptRetreat() {

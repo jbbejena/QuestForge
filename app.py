@@ -879,28 +879,17 @@ def make_choice():
         if any(keyword in new_content.lower() for keyword in SUCCESS_KEYWORDS):
             return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
         
-        # COMBAT DETECTION - Check for combat keywords in new story content
-        if any(keyword in new_content.lower() for keyword in COMBAT_KEYWORDS):
-            combat_result = resolve_combat_encounter(player, chosen_action, mission)
-            
-            # Apply combat consequences
-            if combat_result["victory"]:
-                session["battles_won"] = session.get("battles_won", 0) + 1
-                player_stats = session.get("player_stats", initialize_player_stats())
-                session["player_stats"] = update_player_stats(player_stats, "combat_victory")
-                new_content += f"\n\nCOMBAT RESULT: {combat_result['description']}"
-            else:
-                new_content += f"\n\nCOMBAT RESULT: {combat_result['description']}"
-            
-            # Apply damage and resource usage
-            player["health"] = max(0, player.get("health", 100) - combat_result.get("damage", 0))
-            resources["ammo"] = max(0, resources.get("ammo", 0) - combat_result.get("ammo_used", 1))
-            
-            # Update session with modified player/resources
-            session["player"] = player
-            session["resources"] = resources
-            
-            logging.info(f"Combat encounter resolved: Victory={combat_result['victory']}, Damage={combat_result.get('damage', 0)}")
+        # COMBAT DETECTION - Check for combat keywords and set flag for frontend interactive combat
+        combat_detected = any(keyword in new_content.lower() for keyword in COMBAT_KEYWORDS)
+        if combat_detected:
+            # Set combat flag for frontend to handle interactive combat
+            session["combat_pending"] = True
+            session["combat_story_content"] = new_content
+            logging.info(f"Combat encounter detected - flagged for interactive resolution")
+            # Don't auto-resolve combat here - let the frontend handle it
+        else:
+            # No combat detected, clear any pending combat flags
+            session.pop("combat_pending", None)
         
         # Parse choices from the new content immediately
         fresh_choices = parse_choices(new_content)
@@ -913,18 +902,28 @@ def make_choice():
             new_content += choices_text
             logging.info(f"Added fallback choices: {fallback_choices}")
         
-        # Progressive story system: separate new content from base story
-        choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
-        
-        # Save story turn to database instead of session
-        session_id = get_session_id()
-        db.save_story_turn(session_id, turn_count, chosen_action, new_content)
-        
-        # Progressive story system: only show new content typing
-        session["new_content"] = choice_result
+        # Don't update story immediately if combat is pending - wait for combat resolution
+        if not combat_detected:
+            # Progressive story system: separate new content from base story
+            choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
+            
+            # Save story turn to database instead of session
+            session_id = get_session_id()
+            db.save_story_turn(session_id, turn_count, chosen_action, new_content)
+            
+            # Progressive story system: only show new content typing
+            session["new_content"] = choice_result
+        else:
+            # Combat detected - don't show new content yet, let combat system handle it
+            session["pending_choice_result"] = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
+            logging.info("Combat detected - story update delayed until combat resolution")
         
         # Update the full story for next iteration - this is critical for choice parsing
-        new_full_story = base_story + choice_result
+        if not combat_detected:
+            new_full_story = base_story + choice_result
+        else:
+            # Keep current story state until combat is resolved
+            new_full_story = base_story + session.get("pending_choice_result", "")
         
         # Check for mission outcome after story update
         mission_outcome = detect_mission_outcome(new_full_story)
@@ -1427,6 +1426,13 @@ def use_item():
         "message": "Cannot use that item right now."
     })
 
+@app.route("/check_combat_status")
+def check_combat_status():
+    """Check if combat is pending for the frontend."""
+    return jsonify({
+        "combat_pending": session.get("combat_pending", False)
+    })
+
 @app.route("/get_combat_stats")
 def get_combat_stats():
     """Provide combat stats for the enhanced combat system."""
@@ -1478,6 +1484,12 @@ def integrate_combat_result():
         resources["grenade"] = data.get("playerGrenades", resources.get("grenade", 2))
         resources["medkit"] = data.get("playerMedkits", resources.get("medkit", 2))
     
+    # Update player stats for combat resolution
+    if outcome == "victory":
+        session["battles_won"] = session.get("battles_won", 0) + 1
+        player_stats = session.get("player_stats", initialize_player_stats())
+        session["player_stats"] = update_player_stats(player_stats, "combat_victory")
+    
     # Handle squad casualties with safe data access
     squad_casualties = data.get("squadCasualties", []) if data else []
     squad = session.get("squad", [])
@@ -1528,13 +1540,25 @@ def integrate_combat_result():
     session["resources"] = resources
     session["squad"] = squad
     
+    # Clear combat pending flag and use stored story content
+    session.pop("combat_pending", None)
+    stored_story = session.pop("combat_story_content", "")
+    
+    # Integrate combat narrative with the original story content
+    if stored_story:
+        full_story_content = stored_story + "\n\n" + combat_narrative
+        session["new_content"] = f"\n\n> Combat Resolution:\n\n{full_story_content}"
+    else:
+        session["new_content"] = f"\n\n> Combat Resolution:\n\n{combat_narrative}"
+    
     # Save to database
     save_to_database()
     
     return jsonify({
         "success": True,
         "message": f"Combat {outcome}!",
-        "story_continuation": combat_narrative
+        "story_continuation": combat_narrative,
+        "redirect_to_play": True  # Signal frontend to continue story
     })
 
 @app.route("/camp")
