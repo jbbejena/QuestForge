@@ -516,8 +516,8 @@ function performCombatAction(action) {
                     if (Math.random() < 0.7) {
                         enemy.suppressed = true;
                         suppressed++;
-                        const damage = Math.floor(Math.random() * 10) + 5;
-                        enemy.health = Math.max(0, enemy.health - damage);
+                        let suppressDamage = Math.floor(Math.random() * 10) + 5;
+                        enemy.health = Math.max(0, enemy.health - suppressDamage);
                     }
                 });
                 logMessage = `Suppressing fire! ${suppressed} enemies pinned down.`;
@@ -538,9 +538,9 @@ function performCombatAction(action) {
                 const targets = activeEnemies.slice(0, 2); // Hit up to 2 enemies
                 let totalDamage = 0;
                 targets.forEach(enemy => {
-                    const damage = Math.floor(Math.random() * 40) + 30;
-                    enemy.health = Math.max(0, enemy.health - damage);
-                    totalDamage += damage;
+                    let grenadeDamage = Math.floor(Math.random() * 40) + 30;
+                    enemy.health = Math.max(0, enemy.health - grenadeDamage);
+                    totalDamage += grenadeDamage;
                     if (enemy.inCover) enemy.inCover = false;
                 });
                 logMessage = `Grenade explosion! ${totalDamage} total damage to ${targets.length} enemies!`;
@@ -558,9 +558,9 @@ function performCombatAction(action) {
                 target.health = Math.max(0, target.health - damage);
                 logMessage = `Successful flanking maneuver! ${target.type} exposed and takes ${damage} damage!`;
             } else {
-                const damage = Math.floor(Math.random() * 15) + 10;
-                combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
-                logMessage = `Flanking attempt failed! You're exposed and take ${damage} damage!`;
+                let flankDamage = Math.floor(Math.random() * 15) + 10;
+                combatState.playerHealth = Math.max(0, combatState.playerHealth - flankDamage);
+                logMessage = `Flanking attempt failed! You're exposed and take ${flankDamage} damage!`;
             }
             break;
             
@@ -646,9 +646,9 @@ function processSquadActions() {
                 // All squad members target the same high-priority enemy
                 const priorityTarget = selectBestTarget(activeEnemies);
                 if (priorityTarget) {
-                    const damage = Math.floor(Math.random() * 25) + 15;
-                    priorityTarget.health = Math.max(0, priorityTarget.health - damage);
-                    addToCombatLog(`${member.name} (${member.weapon}) focuses fire on ${priorityTarget.type}! ${damage} damage!`);
+                    let focusDamage = Math.floor(Math.random() * 25) + 15;
+                    priorityTarget.health = Math.max(0, priorityTarget.health - focusDamage);
+                    addToCombatLog(`${member.name} (${member.weapon}) focuses fire on ${priorityTarget.type}! ${focusDamage} damage!`);
                 }
                 break;
                 
@@ -657,9 +657,9 @@ function processSquadActions() {
                 member.inCover = true;
                 if (Math.random() < 0.4) {
                     const target = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
-                    const damage = Math.floor(Math.random() * 15) + 8;
-                    target.health = Math.max(0, target.health - damage);
-                    addToCombatLog(`${member.name} fires from cover at ${target.type}! ${damage} damage!`);
+                    let coverDamage = Math.floor(Math.random() * 15) + 8;
+                    target.health = Math.max(0, target.health - coverDamage);
+                    addToCombatLog(`${member.name} fires from cover at ${target.type}! ${coverDamage} damage!`);
                 } else {
                     addToCombatLog(`${member.name} maintains defensive position`);
                 }
@@ -670,14 +670,14 @@ function processSquadActions() {
                 member.inCover = false;
                 const flankTarget = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
                 if (Math.random() < 0.7) {
-                    const damage = Math.floor(Math.random() * 30) + 20;
-                    flankTarget.health = Math.max(0, flankTarget.health - damage);
+                    let flankingDamage = Math.floor(Math.random() * 30) + 20;
+                    flankTarget.health = Math.max(0, flankTarget.health - flankingDamage);
                     flankTarget.inCover = false; // Flanking removes cover
-                    addToCombatLog(`${member.name} flanks ${flankTarget.type}! Critical hit for ${damage} damage!`);
+                    addToCombatLog(`${member.name} flanks ${flankTarget.type}! Critical hit for ${flankingDamage} damage!`);
                 } else {
-                    const damage = Math.floor(Math.random() * 10) + 5;
-                    member.health = Math.max(0, member.health - damage);
-                    addToCombatLog(`${member.name}'s flanking move is spotted! Takes ${damage} damage!`);
+                    let counterDamage = Math.floor(Math.random() * 10) + 5;
+                    member.health = Math.max(0, member.health - counterDamage);
+                    addToCombatLog(`${member.name}'s flanking move is spotted! Takes ${counterDamage} damage!`);
                 }
                 break;
                 
@@ -704,9 +704,9 @@ function processSquadActions() {
                 } else {
                     // Attack if no one needs healing
                     const target = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
-                    const damage = Math.floor(Math.random() * 15) + 10;
-                    target.health = Math.max(0, target.health - damage);
-                    addToCombatLog(`${member.name} fires at ${target.type}! ${damage} damage!`);
+                    let medicalDamage = Math.floor(Math.random() * 15) + 10;
+                    target.health = Math.max(0, target.health - medicalDamage);
+                    addToCombatLog(`${member.name} fires at ${target.type}! ${medicalDamage} damage!`);
                 }
                 break;
                 
@@ -714,18 +714,18 @@ function processSquadActions() {
                 // Aggressive advance
                 member.inCover = false;
                 const advanceTarget = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
-                const damage = Math.floor(Math.random() * 25) + 15;
-                advanceTarget.health = Math.max(0, advanceTarget.health - damage);
+                let advanceDamage = Math.floor(Math.random() * 25) + 15;
+                advanceTarget.health = Math.max(0, advanceTarget.health - advanceDamage);
                 if (Math.random() < 0.3) advanceTarget.suppressed = true;
-                addToCombatLog(`${member.name} advances and fires! ${damage} damage to ${advanceTarget.type}!`);
+                addToCombatLog(`${member.name} advances and fires! ${advanceDamage} damage to ${advanceTarget.type}!`);
                 break;
                 
             default: // 'follow' or unknown orders
                 // Standard combat behavior
                 const target = activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
-                const damage = Math.floor(Math.random() * 20) + 10;
-                target.health = Math.max(0, target.health - damage);
-                addToCombatLog(`${member.name} fires at ${target.type}! ${damage} damage!`);
+                let standardDamage = Math.floor(Math.random() * 20) + 10;
+                target.health = Math.max(0, target.health - standardDamage);
+                addToCombatLog(`${member.name} fires at ${target.type}! ${standardDamage} damage!`);
                 break;
         }
     });
@@ -966,11 +966,11 @@ function enemyTurn() {
                     combatState.squadMembers.filter(m => m.health > 0).slice(0, 2);
                     
                 grenadeTargets.forEach(target => {
-                    const damage = Math.floor(Math.random() * 25) + 15;
+                    let explosiveDamage = Math.floor(Math.random() * 25) + 15;
                     if (target.name === 'Player') {
-                        combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
+                        combatState.playerHealth = Math.max(0, combatState.playerHealth - explosiveDamage);
                     } else {
-                        target.health = Math.max(0, target.health - damage);
+                        target.health = Math.max(0, target.health - explosiveDamage);
                     }
                 });
                 addToCombatLog(`${enemy.type} throws a grenade! Area damage inflicted!`);
@@ -1171,9 +1171,9 @@ function attemptRetreat() {
         addToCombatLog('Tactical retreat successful! Falling back to safer position.');
         endCombat('retreat');
     } else {
-        const damage = Math.floor(Math.random() * 20) + 10;
-        combatState.playerHealth = Math.max(0, combatState.playerHealth - damage);
-        addToCombatLog(`Retreat blocked by enemy fire! You take ${damage} damage.`);
+        let retreatDamage = Math.floor(Math.random() * 20) + 10;
+        combatState.playerHealth = Math.max(0, combatState.playerHealth - retreatDamage);
+        addToCombatLog(`Retreat blocked by enemy fire! You take ${retreatDamage} damage.`);
         
         if (combatState.playerHealth <= 0) {
             endCombat('defeat');
