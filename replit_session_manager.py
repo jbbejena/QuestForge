@@ -26,6 +26,9 @@ class ReplitSessionManager:
         """Get or create a lightweight session ID for cookie storage."""
         if 'replit_session_id' not in session:
             session['replit_session_id'] = str(uuid.uuid4())
+            logging.info(f"Created new session ID: {session['replit_session_id']}")
+        else:
+            logging.info(f"Using existing session ID: {session['replit_session_id']}")
         return session['replit_session_id']
     
     def _get_key(self, data_type: str) -> str:
@@ -36,9 +39,13 @@ class ReplitSessionManager:
     def set_data(self, data_type: str, data: Any) -> bool:
         """Store data in Replit Key-Value Store."""
         if not self.enabled or not self.db_url:
-            # Fallback to regular Flask session
-            session[data_type] = data
-            return True
+            # Fallback to regular Flask session only if we're in request context
+            try:
+                session[data_type] = data
+                return True
+            except RuntimeError:
+                logging.warning("Cannot use Flask session outside request context")
+                return False
         
         try:
             key = self._get_key(data_type)
@@ -56,15 +63,23 @@ class ReplitSessionManager:
             return True
         except Exception as e:
             logging.error(f"Failed to store {data_type} in Replit DB: {e}")
-            # Fallback to session
-            session[data_type] = data
-            return False
+            # Fallback to session only if we're in request context
+            try:
+                session[data_type] = data
+                return False
+            except RuntimeError:
+                logging.warning("Cannot fallback to Flask session outside request context")
+                return False
     
     def get_data(self, data_type: str, default=None) -> Any:
         """Retrieve data from Replit Key-Value Store."""
         if not self.enabled:
-            # Fallback to regular Flask session
-            return session.get(data_type, default)
+            # Fallback to regular Flask session only if we're in request context
+            try:
+                return session.get(data_type, default)
+            except RuntimeError:
+                logging.warning("Cannot use Flask session outside request context")
+                return default
         
         try:
             key = self._get_key(data_type)
@@ -79,8 +94,12 @@ class ReplitSessionManager:
             return data
         except Exception as e:
             logging.error(f"Failed to retrieve {data_type} from Replit DB: {e}")
-            # Fallback to session
-            return session.get(data_type, default)
+            # Fallback to session only if we're in request context
+            try:
+                return session.get(data_type, default)
+            except RuntimeError:
+                logging.warning("Cannot fallback to Flask session outside request context")
+                return default
     
     def delete_data(self, data_type: str) -> bool:
         """Delete data from Replit Key-Value Store."""

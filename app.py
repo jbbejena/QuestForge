@@ -621,8 +621,10 @@ def mission_menu():
 @app.route("/start_mission", methods=["POST"])
 def start_mission():
     """Initialize selected mission."""
+    print("=== START_MISSION ROUTE CALLED ===")  # Use print for immediate output
     logging.info("=== START_MISSION ROUTE CALLED ===")
     chosen_mission = request.form.get("mission")
+    print(f"Chosen mission: {chosen_mission}")
     logging.info(f"Chosen mission: {chosen_mission}")
     
     # Get mission from campaign system
@@ -687,29 +689,75 @@ def start_mission():
         "Create an engaging opening scenario that establishes the mission context and provides 3 tactical choices."
     )
     
+    print("Generating story content...")
     logging.info("Generating story content...")
     # Temporary: Use a simple test story to debug session management
     story = "The beaches of Normandy stretch before you as dawn breaks on June 6, 1944. Your squad is ready for the assault. The enemy positions are fortified but victory depends on your tactical choices.\n\n1. Storm the beach with aggressive fire and movement.\n2. Use covering fire and advance by sections.\n3. Look for alternative routes up the bluff."
+    print(f"Using test story: '{story[:100]}...' ({len(story)} characters)")
     logging.info(f"Using test story: '{story[:100]}...' ({len(story)} characters)")
     
-    # Initialize clean session for new mission using Replit cloud storage
+    # Initialize clean session for new mission - temporarily use Flask session for immediate fix
+    print(f"Setting story data: {len(story)} characters")
     logging.info(f"Setting story data: {len(story)} characters")
-    success = set_story_data(story)
-    logging.info(f"Story data set successfully: {success}")
-    session["base_story"] = ""  # Reset base story
-    session["new_content"] = ""  # Reset new content
-    session["turn_count"] = 0  # Reset turn counter
-    session["story_history"] = [{"turn": 0, "content": story, "type": "start"}]  # Fresh history
+    session["story"] = story  # Temporary: use Flask session to fix immediate issue
+    success = set_story_data(story)  # Also try cloud storage
+    print(f"Story data set successfully: Flask={bool(session.get('story'))}, Cloud={success}")
+    logging.info(f"Story data set successfully: Flask={bool(session.get('story'))}, Cloud={success}")
+    # Move these to cloud storage to reduce session size
+    # session["base_story"] = ""  # Reset base story
+    # session["new_content"] = ""  # Reset new content  
+    # session["turn_count"] = 0  # Reset turn counter
+    # session["story_history"] = [{"turn": 0, "content": story, "type": "start"}]  # Fresh history
     
+    # Clear large data from Flask session to prevent overflow
+    for key in ['squad', 'resources', 'player', 'mission', 'campaign', 'story_history']:
+        session.pop(key, None)
+    
+    print(f"Session keys after cleanup: {list(session.keys())}")
+    
+    print(f"Mission started: {mission['name']}")
     logging.info(f"Mission started: {mission['name']}")
-    return redirect(url_for("play"))
+    print("Testing story retrieval immediately...")
+    
+    # Test immediate retrieval to see if redirect is the issue
+    test_story = session.get("story", "")
+    test_cloud = get_story_data("")
+    print(f"Immediate test - Flask: {len(test_story)}, Cloud: {len(test_cloud)}")
+    
+    if test_story:
+        # If we have story data, render play directly instead of redirecting
+        choices = parse_choices(test_story)
+        game_state = get_game_state({})
+        player_data = get_player_data({})
+        
+        print("Rendering play template directly...")
+        return render_template("play.html", 
+                             story=test_story,
+                             base_story="",
+                             new_content="",
+                             choices=choices,
+                             player=player_data, 
+                             resources=game_state.get("resources", {}),
+                             mission=game_state.get("mission", {}),
+                             turn_count=game_state.get("turn_count", 0),
+                             squad=game_state.get("squad", []))
+    else:
+        print("No story found, redirecting to missions...")
+        return redirect(url_for("mission_menu"))
 
 @app.route("/play")
 def play():
     """Main gameplay interface."""
+    print("=== PLAY ROUTE CALLED ===")
+    # Try cloud storage first, fall back to Flask session
     story = get_story_data("")
+    if not story:
+        story = session.get("story", "")
+        print(f"Using Flask session fallback: {len(story)} characters")
+    print(f"Play route: story length = {len(story) if story else 0}")
     logging.info(f"Play route: story length = {len(story) if story else 0}")
     if not story:
+        print("No story data found, redirecting to missions")
         logging.warning("No story data found, redirecting to missions")
         return redirect(url_for("mission_menu"))
     
@@ -1034,6 +1082,7 @@ def make_choice():
         else:
             # Keep normal session-based story management
             set_story_data(new_full_story)
+            session["story"] = new_full_story  # Also store in Flask session for immediate access
             session["base_story"] = base_story
         
         # Update session and save to database
@@ -1041,7 +1090,21 @@ def make_choice():
         session["resources"] = resources
         save_to_database()
         
-        return redirect(url_for("play"))
+        # Render play directly instead of redirecting to avoid session loss
+        choices = parse_choices(new_full_story)
+        game_state = get_game_state({})
+        player_data = get_player_data({})
+        
+        return render_template("play.html", 
+                             story=new_full_story,
+                             base_story=base_story,
+                             new_content="",
+                             choices=choices,
+                             player=player_data, 
+                             resources=game_state.get("resources", {}),
+                             mission=game_state.get("mission", {}),
+                             turn_count=turn_count,
+                             squad=game_state.get("squad", []))
     
     except Exception as e:
         logging.error(f"Error in story management: {e}")
