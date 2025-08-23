@@ -736,9 +736,9 @@ def start_mission():
         
         print("Rendering play template directly...")
         return render_template("play.html", 
-                             story=test_story,
-                             base_story="",
-                             new_content="",
+                             story=test_story,  # Full story for initial display
+                             base_story="",     # No base story for first time
+                             new_content="",    # No new content for first time
                              choices=choices,
                              player=player_data, 
                              resources=game_state.get("resources", {}),
@@ -1094,15 +1094,19 @@ def make_choice():
         session["resources"] = resources
         save_to_database()
         
-        # Render play directly instead of redirecting to avoid session loss
+        # Render play with progressive story display
         choices = parse_choices(new_full_story)
         game_state = get_game_state({})
         player_data = get_player_data({})
         
+        # Progressive story: separate previous content from new content
+        # choice_result contains the new content from this choice
+        actual_new_content = choice_result if choice_result else ""
+        
         return render_template("play.html", 
-                             story=new_full_story,
-                             base_story=base_story,
-                             new_content="",
+                             story=new_full_story,  # Full story for fallback
+                             base_story=base_story,  # Previous story content
+                             new_content=actual_new_content,  # Only the new content from this choice
                              choices=choices,
                              player=player_data, 
                              resources=game_state.get("resources", {}),
