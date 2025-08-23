@@ -621,7 +621,9 @@ def mission_menu():
 @app.route("/start_mission", methods=["POST"])
 def start_mission():
     """Initialize selected mission."""
+    logging.info("=== START_MISSION ROUTE CALLED ===")
     chosen_mission = request.form.get("mission")
+    logging.info(f"Chosen mission: {chosen_mission}")
     
     # Get mission from campaign system
     campaign = session.get("campaign", {})
@@ -636,12 +638,18 @@ def start_mission():
         else:
             mission = INITIAL_MISSION
     
-    session["mission"] = mission
+    # Store mission data in cloud storage instead of session
+    set_game_state({
+        "mission": mission,
+        "turn_count": 0,
+        "story_history": [],
+        "mission_phase": "start",
+        "resources": session.get("resources", {}),
+        "squad": session.get("squad", [])
+    })
     
-    # Initialize turn tracking and story progression
-    session["turn_count"] = 0
-    session["story_history"] = []
-    session["mission_phase"] = "start"  # start, middle, climax, end
+    # Store player data in cloud storage
+    set_player_data(session.get("player", {}))
     
     # Use enhanced session management
     session_manager.auto_cleanup()
@@ -651,8 +659,13 @@ def start_mission():
     resources["ammo"] = resources.get("ammo", 0) + 3
     session["resources"] = resources
     
+    # Get player and squad data (might be in session or cloud storage)
     player = session.get("player", {})
+    if not player:
+        player = get_player_data({})
+    
     squad = session.get("squad", [])
+    logging.info(f"Retrieved player: {player.get('name', 'Unknown')} and squad: {len(squad)} members")
     
     # Generate initial mission scenario with enhanced prompting
     system_msg = (
@@ -674,10 +687,15 @@ def start_mission():
         "Create an engaging opening scenario that establishes the mission context and provides 3 tactical choices."
     )
     
-    story = ai_chat(system_msg, user_prompt)
+    logging.info("Generating story content...")
+    # Temporary: Use a simple test story to debug session management
+    story = "The beaches of Normandy stretch before you as dawn breaks on June 6, 1944. Your squad is ready for the assault. The enemy positions are fortified but victory depends on your tactical choices.\n\n1. Storm the beach with aggressive fire and movement.\n2. Use covering fire and advance by sections.\n3. Look for alternative routes up the bluff."
+    logging.info(f"Using test story: '{story[:100]}...' ({len(story)} characters)")
     
-    # Initialize clean session for new mission
-    session["story"] = story
+    # Initialize clean session for new mission using Replit cloud storage
+    logging.info(f"Setting story data: {len(story)} characters")
+    success = set_story_data(story)
+    logging.info(f"Story data set successfully: {success}")
     session["base_story"] = ""  # Reset base story
     session["new_content"] = ""  # Reset new content
     session["turn_count"] = 0  # Reset turn counter
@@ -689,8 +707,10 @@ def start_mission():
 @app.route("/play")
 def play():
     """Main gameplay interface."""
-    story = session.get("story", "")
+    story = get_story_data("")
+    logging.info(f"Play route: story length = {len(story) if story else 0}")
     if not story:
+        logging.warning("No story data found, redirecting to missions")
         return redirect(url_for("mission_menu"))
     
     choices = parse_choices(story)
@@ -698,18 +718,21 @@ def play():
     # Progressive story display: separate base story from new content
     base_story = session.get("base_story", "")
     new_content = session.get("new_content", "")
-    turn_count = session.get("turn_count", 0)
+    
+    # Get game data from cloud storage
+    game_state = get_game_state({})
+    player_data = get_player_data({})
     
     return render_template("play.html", 
                          story=story,
                          base_story=base_story,
                          new_content=new_content,
                          choices=choices,
-                         player=session.get("player", {}), 
-                         resources=session.get("resources", {}),
-                         mission=session.get("mission", {}),
-                         turn_count=turn_count,
-                         squad=session.get("squad", []))
+                         player=player_data, 
+                         resources=game_state.get("resources", {}),
+                         mission=game_state.get("mission", {}),
+                         turn_count=game_state.get("turn_count", 0),
+                         squad=game_state.get("squad", []))
 
 @app.route("/make_choice", methods=["POST"])
 @app.route("/choose", methods=["POST"])
@@ -723,7 +746,7 @@ def make_choice():
         choice_index = max(0, min(2, int(choice_input) - 1))  # Clamp to valid range
         
         # Get current story and parse fresh choices
-        current_story = session.get("story", "")
+        current_story = get_story_data("")
         choices = parse_choices(current_story)
         if 0 <= choice_index < len(choices):
             chosen_action = choices[choice_index]
@@ -809,7 +832,7 @@ def make_choice():
             player_stats = session.get("player_stats", initialize_player_stats())
             session["player_stats"] = update_player_stats(player_stats, "player_death")
             story += "\n--- MISSION FAILED ---\nYou have been critically wounded and the mission is aborted."
-            session["story"] = story
+            set_story_data(story)
             return redirect(url_for("base_camp"))
         
         # Enhanced story generation with context
@@ -1000,7 +1023,7 @@ def make_choice():
             
             # Keep minimal data in session
             session["base_story"] = summarized_story
-            session["story"] = summarized_story + choice_result
+            set_story_data(summarized_story + choice_result)
             session["story_compressed"] = True
             session["story_turn_compressed"] = turn_count
             
@@ -1010,7 +1033,7 @@ def make_choice():
         
         else:
             # Keep normal session-based story management
-            session["story"] = new_full_story
+            set_story_data(new_full_story)
             session["base_story"] = base_story
         
         # Update session and save to database
@@ -1029,11 +1052,11 @@ def make_choice():
             action_text = locals().get("chosen_action", "a tactical action")
             new_full_story_safe = base_story_safe + f"\n\n> You chose: {action_text}\n\nThe mission continues..."
             
-            session["story"] = new_full_story_safe
+            set_story_data(new_full_story_safe)
             session["base_story"] = base_story_safe
         except Exception as fallback_error:
             logging.error(f"Fallback error: {fallback_error}")
-            session["story"] = "Mission continues..."
+            set_story_data("Mission continues...")
         
         # Ensure we always return a response
         return redirect(url_for("play"))

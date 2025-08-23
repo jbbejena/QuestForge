@@ -171,6 +171,7 @@ def get_game_state(default=None) -> Dict[str, Any]:
 
 def set_story_data(story_data: str) -> bool:
     """Store story content."""
+    logging.info(f"set_story_data called with {len(story_data)} characters")
     # For large story data, we might need to chunk it
     if len(story_data.encode('utf-8')) > 4 * 1024 * 1024:  # 4MB threshold
         # Split large story into chunks
@@ -188,12 +189,16 @@ def set_story_data(story_data: str) -> bool:
         
         return success
     else:
-        return replit_session.set_data('story', story_data)
+        result = replit_session.set_data('story', story_data)
+        logging.info(f"Story data storage result: {result}")
+        return result
 
 def get_story_data(default="") -> str:
     """Get story content, handling chunked data."""
+    logging.info("get_story_data called")
     # First try to get non-chunked story
     story = replit_session.get_data('story')
+    logging.info(f"Retrieved story: {len(story) if story else 0} characters")
     if story is not None:
         return story
     
