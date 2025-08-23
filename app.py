@@ -891,16 +891,20 @@ def make_choice():
             # No combat detected, clear any pending combat flags
             session.pop("combat_pending", None)
         
-        # Parse choices from the new content immediately
-        fresh_choices = parse_choices(new_content)
-        logging.info(f"Parsed choices: {fresh_choices}")
-        
-        # If no valid choices found, add fallback choices to the content
-        if len(fresh_choices) < 3:
-            fallback_choices = generate_contextual_choices(player, mission, turn_count)
-            choices_text = f"\n\n1. {fallback_choices[0]}\n2. {fallback_choices[1]}\n3. {fallback_choices[2]}"
-            new_content += choices_text
-            logging.info(f"Added fallback choices: {fallback_choices}")
+        # Only parse and add choices if combat is NOT detected
+        if not combat_detected:
+            # Parse choices from the new content immediately
+            fresh_choices = parse_choices(new_content)
+            logging.info(f"Parsed choices: {fresh_choices}")
+            
+            # If no valid choices found, add fallback choices to the content
+            if len(fresh_choices) < 3:
+                fallback_choices = generate_contextual_choices(player, mission, turn_count)
+                choices_text = f"\n\n1. {fallback_choices[0]}\n2. {fallback_choices[1]}\n3. {fallback_choices[2]}"
+                new_content += choices_text
+                logging.info(f"Added fallback choices: {fallback_choices}")
+        else:
+            logging.info("Combat detected - skipping choice generation, combat system will handle flow")
         
         # Initialize choice_result regardless of combat detection
         choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
@@ -1544,12 +1548,45 @@ def integrate_combat_result():
     session.pop("combat_pending", None)
     stored_story = session.pop("combat_story_content", "")
     
-    # Integrate combat narrative with the original story content
+    # After combat, generate new story content with choices
+    mission = session.get("mission", {})
+    player = session.get("player", {})
+    turn_count = session.get("turn_count", 0) + 1
+    
+    # Create post-combat story continuation 
     if stored_story:
-        full_story_content = stored_story + "\n\n" + combat_narrative
-        session["new_content"] = f"\n\n> Combat Resolution:\n\n{full_story_content}"
+        post_combat_story = stored_story + combat_narrative
     else:
-        session["new_content"] = f"\n\n> Combat Resolution:\n\n{combat_narrative}"
+        post_combat_story = combat_narrative
+    
+    # Generate tactical choices based on combat outcome and current situation
+    if outcome == "victory":
+        post_combat_choices = [
+            "Continue advancing toward the objective.",
+            "Secure the area and tend to wounded.",
+            "Search for enemy intelligence or supplies."
+        ]
+    elif outcome == "retreat":
+        post_combat_choices = [
+            "Find alternative route to objective.",
+            "Regroup and call for reinforcements.",
+            "Assess casualties and plan next move."
+        ]
+    else:  # defeat
+        post_combat_choices = [
+            "Attempt emergency evacuation.",
+            "Send distress signal to command.",
+            "Find cover and wait for rescue."
+        ]
+    
+    # Add choices to the story content
+    choices_text = f"\n\n1. {post_combat_choices[0]}\n2. {post_combat_choices[1]}\n3. {post_combat_choices[2]}"
+    full_story_with_choices = post_combat_story + choices_text
+    
+    # Update story and turn count
+    session["story"] = current_story + combat_narrative + choices_text
+    session["new_content"] = f"\n\n> Combat Resolution:\n\n{full_story_with_choices}"
+    session["turn_count"] = turn_count
     
     # Save to database
     save_to_database()
@@ -1557,7 +1594,7 @@ def integrate_combat_result():
     return jsonify({
         "success": True,
         "message": f"Combat {outcome}!",
-        "story_continuation": combat_narrative,
+        "story_continuation": full_story_with_choices,
         "redirect_to_play": True  # Signal frontend to continue story
     })
 
