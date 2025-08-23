@@ -902,11 +902,11 @@ def make_choice():
             new_content += choices_text
             logging.info(f"Added fallback choices: {fallback_choices}")
         
+        # Initialize choice_result regardless of combat detection
+        choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
+        
         # Don't update story immediately if combat is pending - wait for combat resolution
         if not combat_detected:
-            # Progressive story system: separate new content from base story
-            choice_result = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
-            
             # Save story turn to database instead of session
             session_id = get_session_id()
             db.save_story_turn(session_id, turn_count, chosen_action, new_content)
@@ -915,7 +915,7 @@ def make_choice():
             session["new_content"] = choice_result
         else:
             # Combat detected - don't show new content yet, let combat system handle it
-            session["pending_choice_result"] = f"\n\n> You chose: {chosen_action}\n\n{new_content}"
+            session["pending_choice_result"] = choice_result
             logging.info("Combat detected - story update delayed until combat resolution")
         
         # Update the full story for next iteration - this is critical for choice parsing
@@ -1697,16 +1697,14 @@ def quick_load():
     return jsonify({"success": False, "message": "No saved game found."})
 
 @app.route("/reset")
-def get_session_id():
-    """Get or create a unique session identifier."""
-    if 'game_session_id' not in session:
-        import uuid
-        session['game_session_id'] = str(uuid.uuid4())
-        session.permanent = True
-    return session['game_session_id']
+def reset_game():
+    """Reset the game session."""
+    session.clear()
+    return redirect(url_for("index"))
 
 def save_to_database():
     """Save current session data to database."""
+    from game_logic import get_session_id
     session_id = get_session_id()
     
     # Save player data
@@ -1733,6 +1731,7 @@ def save_to_database():
 
 def load_from_database():
     """Load session data from database."""
+    from game_logic import get_session_id
     session_id = get_session_id()
     
     # Load player data
