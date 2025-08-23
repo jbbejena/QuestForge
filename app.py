@@ -694,10 +694,11 @@ def start_mission():
     
     print("Generating story content...")
     logging.info("Generating story content...")
-    # Temporary: Use a simple test story to debug session management
-    story = "The beaches of Normandy stretch before you as dawn breaks on June 6, 1944. Your squad is ready for the assault. The enemy positions are fortified but victory depends on your tactical choices.\n\n1. Storm the beach with aggressive fire and movement.\n2. Use covering fire and advance by sections.\n3. Look for alternative routes up the bluff."
-    print(f"Using test story: '{story[:100]}...' ({len(story)} characters)")
-    logging.info(f"Using test story: '{story[:100]}...' ({len(story)} characters)")
+    
+    # Generate AI story content
+    story = ai_chat(system_msg, user_prompt)
+    print(f"Generated AI story: '{story[:100]}...' ({len(story)} characters)")
+    logging.info(f"Generated AI story: '{story[:100]}...' ({len(story)} characters)")
     
     # Initialize clean session for new mission - temporarily use Flask session for immediate fix
     print(f"Setting story data: {len(story)} characters")
