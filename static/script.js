@@ -188,6 +188,11 @@ function initializeCombatSystem() {
 }
 
 function checkForPendingCombat() {
+    // Only check for pending combat if we're on the play page
+    if (!window.location.pathname.includes('/play')) {
+        return;
+    }
+    
     // Check if backend has flagged combat as pending
     fetch('/check_combat_status')
         .then(response => response.json())

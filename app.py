@@ -473,6 +473,9 @@ def create_character():
     session.clear()
     session["player_stats"] = player_stats
     
+    # Clear any pending combat flags
+    session.pop("combat_pending", None)
+    
     # Create player character with enhanced attributes
     player_class = request.form.get("char_class", "Rifleman")
     weapon = request.form.get("weapon", "Rifle")
