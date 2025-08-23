@@ -14,6 +14,10 @@ from config import (
 from session_manager import session_manager
 from story_manager import story_manager
 from database import db, is_replit_database_available
+from replit_session_manager import (
+    replit_session, set_player_data, get_player_data,
+    set_game_state, get_game_state, set_story_data, get_story_data
+)
 from achievements import (
     check_achievements, get_achievement_display, initialize_player_stats, 
     update_player_stats, ACHIEVEMENTS
@@ -886,32 +890,21 @@ def make_choice():
         logging.info(f"Combat detection check: content length={len(new_content)}, keywords_matched={[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
         
         if combat_detected:
-            # Set combat flag for frontend to handle interactive combat
+            # Use Replit Key-Value Store for combat data - no cookie limits!
+            replit_session.set_data("combat_pending", True)
+            replit_session.set_data("combat_story_content", new_content)
+            
+            # Also set minimal flag in session for immediate frontend access
             session["combat_pending"] = True
-            # Store only essential combat info to avoid session overflow
-            session["combat_story_content"] = new_content[-500:] if len(new_content) > 500 else new_content
+            
             logging.warning(f"🔥 COMBAT DETECTED! Keywords found: {[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
-            
-            # Aggressively clear session data to make room for combat
-            # Store essential data in database and clear session
-            from game_logic import get_session_id
-            session_id = get_session_id()
-            
-            # Store story data in database
-            if "story" in session:
-                db.save_story_chunk(session_id, "pre_combat_story", session["story"])
-                session["story"] = "Combat initiated..."  # Minimal placeholder
-            
-            # Clear non-essential session data
-            non_essential_keys = ["base_story", "new_content", "story_history", "pending_choice_result"]
-            for key in non_essential_keys:
-                session.pop(key, None)
-            
-            logging.info("Aggressively compressed session for combat")
+            logging.info("Combat data stored in Replit Key-Value Store - no cookie limits!")
             
             # Don't auto-resolve combat here - let the frontend handle it
         else:
             # No combat detected, clear any pending combat flags
+            replit_session.delete_data("combat_pending")
+            replit_session.delete_data("combat_story_content")
             session.pop("combat_pending", None)
             logging.info("No combat detected in current content")
         
