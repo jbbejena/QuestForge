@@ -162,20 +162,20 @@
             <div class="resources-grid">
                 <div class="resource-item">
                     <i class="fas fa-bullseye"></i>
-                    <span>Ammunition: {{ resources.ammo }}</span>
+                    <span>Ammunition: {{ resources.get('ammo', 0) }}</span>
                 </div>
                 <div class="resource-item">
                     <i class="fas fa-first-aid"></i>
-                    <span>Medical Kits: {{ resources.medkit }}</span>
+                    <span>Medical Kits: {{ resources.get('medkit', 0) }}</span>
                 </div>
                 <div class="resource-item">
                     <i class="fas fa-bomb"></i>
-                    <span>Grenades: {{ resources.grenade }}</span>
+                    <span>Grenades: {{ resources.get('grenade', 0) }}</span>
                 </div>
-                {% if resources.intel > 0 %}
+                {% if resources.get('intel', 0) > 0 %}
                 <div class="resource-item">
                     <i class="fas fa-file-alt"></i>
-                    <span>Intelligence: {{ resources.intel }}</span>
+                    <span>Intelligence: {{ resources.get('intel', 0) }}</span>
                 </div>
                 {% endif %}
             </div>

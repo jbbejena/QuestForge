@@ -42,20 +42,20 @@
                 <div class="resources">
                     <span class="resource" title="Ammunition">
                         <i class="fas fa-bullseye"></i>
-                        {{ resources.ammo }}
+                        {{ resources.get('ammo', 0) }}
                     </span>
                     <span class="resource" title="Medical Kits">
                         <i class="fas fa-first-aid"></i>
-                        {{ resources.medkit }}
+                        {{ resources.get('medkit', 0) }}
                     </span>
                     <span class="resource" title="Grenades">
                         <i class="fas fa-bomb"></i>
-                        {{ resources.grenade }}
+                        {{ resources.get('grenade', 0) }}
                     </span>
-                    {% if resources.intel > 0 %}
+                    {% if resources.get('intel', 0) > 0 %}
                     <span class="resource" title="Intelligence">
                         <i class="fas fa-file-alt"></i>
-                        {{ resources.intel }}
+                        {{ resources.get('intel', 0) }}
                     </span>
                     {% endif %}
                 </div>
@@ -105,14 +105,14 @@
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-            <button onclick="useItem('medkit')" class="action-btn medkit-btn" {% if resources.medkit <= 0 %}disabled{% endif %}>
+            <button onclick="useItem('medkit')" class="action-btn medkit-btn" {% if resources.get('medkit', 0) <= 0 %}disabled{% endif %}>
                 <i class="fas fa-first-aid"></i>
-                Use Medkit ({{ resources.medkit }})
+                Use Medkit ({{ resources.get('medkit', 0) }})
             </button>
             
-            <button onclick="useItem('grenade')" class="action-btn grenade-btn" {% if resources.grenade <= 0 %}disabled{% endif %}>
+            <button onclick="useItem('grenade')" class="action-btn grenade-btn" {% if resources.get('grenade', 0) <= 0 %}disabled{% endif %}>
                 <i class="fas fa-bomb"></i>
-                Use Grenade ({{ resources.grenade }})
+                Use Grenade ({{ resources.get('grenade', 0) }})
             </button>
             
             <button onclick="quickSave()" class="action-btn save-btn">
@@ -147,10 +147,10 @@
 
         <!-- Quick Actions -->
         <div class="quick-actions">
-            {% if resources.medkit > 0 and player.health < 100 %}
+            {% if resources.get('medkit', 0) > 0 and player.health < 100 %}
             <button onclick="useItem('medkit')" class="btn btn-small btn-success">
                 <i class="fas fa-first-aid"></i>
-                Use Medkit ({{ resources.medkit }})
+                Use Medkit ({{ resources.get('medkit', 0) }})
             </button>
             {% endif %}
             

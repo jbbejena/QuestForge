@@ -296,18 +296,18 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     
     story_lower = story_content.lower()
     
-    # Success indicators with weights
+    # Success indicators with weights - more specific phrases to avoid false positives
     success_indicators = [
         ("mission accomplished", 10),
         ("objective complete", 10),
         ("mission successful", 10),
-        ("victory", 8),
-        ("objective secured", 9),
-        ("target destroyed", 9),
-        ("successfully completed", 8),
         ("mission complete", 10),
+        ("successfully completed", 8),
+        ("target destroyed", 9),
         ("beach secured", 8),
-        ("objective achieved", 9)
+        ("objective achieved", 9),
+        ("mission objectives completed", 10),
+        ("all objectives secured", 9)
     ]
     
     # Failure indicators with weights  
@@ -327,19 +327,22 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     success_score = sum(weight for keyword, weight in success_indicators if keyword in story_lower)
     failure_score = sum(weight for keyword, weight in failure_indicators if keyword in story_lower)
     
-    # Clear determination
-    if success_score > failure_score + 5:
+    # Much more conservative determination - require high confidence
+    if success_score >= 10 and success_score > failure_score + 8:
         return "success"
-    elif failure_score > success_score + 5:
+    elif failure_score >= 10 and failure_score > success_score + 8:
         return "failure"
     
-    # Check turn count for long missions
+    # Check turn count for long missions - require even more specific language
     turn_count = session.get("turn_count", 0)
-    if turn_count >= 7:
-        # Look for resolution indicators in final turns
-        if any(word in story_lower for word in ["secured", "completed", "achieved", "accomplished"]):
+    if turn_count >= 8:  # Increased from 7 to 8
+        # Look for very specific completion phrases
+        completion_phrases = ["mission accomplished", "objective complete", "mission successful", "mission complete"]
+        failure_phrases = ["mission failed", "mission aborted", "forced to retreat"]
+        
+        if any(phrase in story_lower for phrase in completion_phrases):
             return "success"
-        elif any(word in story_lower for word in ["failed", "lost", "retreat", "withdrawn"]):
+        elif any(phrase in story_lower for phrase in failure_phrases):
             return "failure"
     
     return None
