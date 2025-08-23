@@ -881,15 +881,39 @@ def make_choice():
         
         # COMBAT DETECTION - Check for combat keywords and set flag for frontend interactive combat
         combat_detected = any(keyword in new_content.lower() for keyword in COMBAT_KEYWORDS)
+        
+        # Debug logging to track detection
+        logging.info(f"Combat detection check: content length={len(new_content)}, keywords_matched={[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
+        
         if combat_detected:
             # Set combat flag for frontend to handle interactive combat
             session["combat_pending"] = True
-            session["combat_story_content"] = new_content
-            logging.info(f"Combat encounter detected - flagged for interactive resolution")
+            # Store only essential combat info to avoid session overflow
+            session["combat_story_content"] = new_content[-500:] if len(new_content) > 500 else new_content
+            logging.warning(f"🔥 COMBAT DETECTED! Keywords found: {[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
+            
+            # Aggressively clear session data to make room for combat
+            # Store essential data in database and clear session
+            from game_logic import get_session_id
+            session_id = get_session_id()
+            
+            # Store story data in database
+            if "story" in session:
+                db.save_story_chunk(session_id, "pre_combat_story", session["story"])
+                session["story"] = "Combat initiated..."  # Minimal placeholder
+            
+            # Clear non-essential session data
+            non_essential_keys = ["base_story", "new_content", "story_history", "pending_choice_result"]
+            for key in non_essential_keys:
+                session.pop(key, None)
+            
+            logging.info("Aggressively compressed session for combat")
+            
             # Don't auto-resolve combat here - let the frontend handle it
         else:
             # No combat detected, clear any pending combat flags
             session.pop("combat_pending", None)
+            logging.info("No combat detected in current content")
         
         # Only parse and add choices if combat is NOT detected
         if not combat_detected:
@@ -912,6 +936,7 @@ def make_choice():
         # Don't update story immediately if combat is pending - wait for combat resolution
         if not combat_detected:
             # Save story turn to database instead of session
+            from game_logic import get_session_id
             session_id = get_session_id()
             db.save_story_turn(session_id, turn_count, chosen_action, new_content)
             
@@ -959,6 +984,7 @@ def make_choice():
         
         # Hybrid session-database story management
         if len(new_full_story) > 2500:  # Lower threshold with database backup
+            from game_logic import get_session_id
             session_id = get_session_id()
             
             # Store full story in database before compression

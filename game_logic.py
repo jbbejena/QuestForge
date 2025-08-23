@@ -450,7 +450,14 @@ COMBAT_KEYWORDS = [
     "combat", "ambush", "ambushed", "attack begins", "sudden attack", "under fire",
     "opens fire", "open fire", "firefight", "enemy fires", "battle erupts",
     "exchange of gunfire", "hostilities commence", "start shooting", "start firing",
-    "enemy spotted", "take cover", "incoming fire", "gunshots ring out"
+    "enemy spotted", "take cover", "incoming fire", "gunshots ring out",
+    # Additional realistic phrases the AI actually generates
+    "machine gun fire", "artillery", "bullets whizzed", "returning fire",
+    "covering fire", "barrage", "enemy fire", "gunfire", "weapons fire",
+    "muzzle flash", "sniper", "mortar", "grenade", "explosion", "shrapnel",
+    "pinned down", "suppressing fire", "enemy position", "hostile fire",
+    "bullets", "shells", "rounds", "enemy troops", "german forces",
+    "enemy soldiers", "german soldiers", "Wehrmacht", "SS troops"
 ]
 
 # Mission outcome keywords
