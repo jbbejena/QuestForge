@@ -946,13 +946,17 @@ def make_choice():
         )
         
         # Use story manager for story generation if available
-        if hasattr(story_manager, 'generate_story_continuation'):
-            new_content = story_manager.generate_story_continuation(
-                mission, player, story, chosen_action
-            )
-        else:
-            new_content = ai_chat(system_msg, user_prompt)
-        logging.info(f"Generated content: {new_content[:200]}...")
+        try:
+            if hasattr(story_manager, 'generate_story_continuation'):
+                new_content = story_manager.generate_story_continuation(
+                    mission, player, story, chosen_action
+                )
+            else:
+                new_content = ai_chat(system_msg, user_prompt)
+            logging.info(f"Generated content: {new_content[:200]}...")
+        except Exception as ai_error:
+            logging.error(f"AI generation failed: {ai_error}")
+            new_content = f"You proceed with {chosen_action}. The mission continues as your squad moves forward.\n\n1. Continue the advance.\n2. Take defensive positions.\n3. Regroup with the squad."
         
         # Check for success indicators in AI response after generation
         if any(keyword in new_content.lower() for keyword in SUCCESS_KEYWORDS):
@@ -965,23 +969,31 @@ def make_choice():
         logging.info(f"Combat detection check: content length={len(new_content)}, keywords_matched={[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
         
         if combat_detected:
-            # Use Replit Key-Value Store for combat data - no cookie limits!
-            replit_session.set_data("combat_pending", True)
-            replit_session.set_data("combat_story_content", new_content)
-            
-            # Also set minimal flag in session for immediate frontend access
-            session["combat_pending"] = True
-            
-            logging.warning(f"🔥 COMBAT DETECTED! Keywords found: {[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
-            logging.info("Combat data stored in Replit Key-Value Store - no cookie limits!")
-            
-            # Don't auto-resolve combat here - let the frontend handle it
+            # Use Replit Key-Value Store for combat data - with error handling
+            try:
+                replit_session.set_data("combat_pending", True)
+                replit_session.set_data("combat_story_content", new_content)
+                
+                # Also set minimal flag in session for immediate frontend access
+                session["combat_pending"] = True
+                
+                logging.warning(f"🔥 COMBAT DETECTED! Keywords found: {[k for k in COMBAT_KEYWORDS if k in new_content.lower()]}")
+                logging.info("Combat data stored in Replit Key-Value Store - no cookie limits!")
+            except Exception as combat_storage_error:
+                logging.error(f"Combat storage failed: {combat_storage_error}")
+                # Fallback to session only
+                session["combat_pending"] = True
+                session["combat_story_content"] = new_content
         else:
-            # No combat detected, clear any pending combat flags
-            replit_session.delete_data("combat_pending")
-            replit_session.delete_data("combat_story_content")
-            session.pop("combat_pending", None)
-            logging.info("No combat detected in current content")
+            # No combat detected, clear any pending combat flags - with error handling
+            try:
+                replit_session.delete_data("combat_pending")
+                replit_session.delete_data("combat_story_content")
+                session.pop("combat_pending", None)
+                logging.info("No combat detected in current content")
+            except Exception as cleanup_error:
+                logging.error(f"Combat cleanup failed: {cleanup_error}")
+                # Continue anyway
         
         # Only parse and add choices if combat is NOT detected
         if not combat_detected:
@@ -1094,25 +1106,30 @@ def make_choice():
         session["resources"] = resources
         save_to_database()
         
-        # Render play with progressive story display
-        choices = parse_choices(new_full_story)
-        game_state = get_game_state({})
-        player_data = get_player_data({})
-        
-        # Progressive story: separate previous content from new content
-        # choice_result contains the new content from this choice
-        actual_new_content = choice_result if choice_result else ""
-        
-        return render_template("play.html", 
-                             story=new_full_story,  # Full story for fallback
-                             base_story=base_story,  # Previous story content
-                             new_content=actual_new_content,  # Only the new content from this choice
-                             choices=choices,
-                             player=player_data, 
-                             resources=game_state.get("resources", {}),
-                             mission=game_state.get("mission", {}),
-                             turn_count=turn_count,
-                             squad=game_state.get("squad", []))
+        # Render play with progressive story display - with error handling
+        try:
+            choices = parse_choices(new_full_story)
+            game_state = get_game_state({})
+            player_data = get_player_data({})
+            
+            # Progressive story: separate previous content from new content
+            # choice_result contains the new content from this choice
+            actual_new_content = choice_result if 'choice_result' in locals() and choice_result else ""
+            
+            return render_template("play.html", 
+                                 story=new_full_story,  # Full story for fallback
+                                 base_story=base_story,  # Previous story content
+                                 new_content=actual_new_content,  # Only the new content from this choice
+                                 choices=choices,
+                                 player=player_data or {}, 
+                                 resources=game_state.get("resources", {}),
+                                 mission=game_state.get("mission", {}),
+                                 turn_count=turn_count,
+                                 squad=game_state.get("squad", []))
+        except Exception as render_error:
+            logging.error(f"Template rendering failed: {render_error}")
+            # Safe fallback - redirect to play route
+            return redirect(url_for("play"))
     
     except Exception as e:
         logging.error(f"Error in story management: {e}")
