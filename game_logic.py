@@ -327,15 +327,21 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     success_score = sum(weight for keyword, weight in success_indicators if keyword in story_lower)
     failure_score = sum(weight for keyword, weight in failure_indicators if keyword in story_lower)
     
-    # Much more conservative determination - require high confidence
-    if success_score >= 10 and success_score > failure_score + 8:
+    # Much more conservative determination - require high confidence AND minimum turns
+    turn_count = session.get("turn_count", 0)
+    
+    # Prevent premature completion - require at least 4 turns
+    if turn_count < 4:
+        return None
+    
+    # Require very high confidence for completion
+    if success_score >= 15 and success_score > failure_score + 10:
         return "success"
-    elif failure_score >= 10 and failure_score > success_score + 8:
+    elif failure_score >= 15 and failure_score > success_score + 10:
         return "failure"
     
     # Check turn count for long missions - require even more specific language
-    turn_count = session.get("turn_count", 0)
-    if turn_count >= 8:  # Increased from 7 to 8
+    if turn_count >= 8:
         # Look for very specific completion phrases
         completion_phrases = ["mission accomplished", "objective complete", "mission successful", "mission complete"]
         failure_phrases = ["mission failed", "mission aborted", "forced to retreat"]
@@ -463,11 +469,11 @@ COMBAT_KEYWORDS = [
     "enemy soldiers", "german soldiers", "Wehrmacht", "SS troops"
 ]
 
-# Mission outcome keywords
+# Mission outcome keywords - made much more specific to prevent false positives
 SUCCESS_KEYWORDS = [
-    "mission accomplished", "objective complete", "mission successful", "victory",
-    "objective secured", "target destroyed", "successfully completed", "mission complete",
-    "beach secured", "objective achieved", "successfully infiltrated", "enemy eliminated"
+    "mission accomplished", "mission successful", "mission complete", 
+    "all objectives complete", "successfully completed the mission", 
+    "objective fully achieved", "mission objectives accomplished"
 ]
 
 FAILURE_KEYWORDS = [

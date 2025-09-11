@@ -841,17 +841,17 @@ def make_choice():
         # Initialize story variable for compatibility
         story = current_story + f"\n\n> You chose: {chosen_action}\n"
         
-        # Enhanced mission completion detection
-        completion_keywords = ["return to base", "exfiltrate", "mission complete", "objective secured", "fall back", "retreat", "withdraw"]
-        success_keywords = ["bridge destroyed", "prisoners freed", "documents secured", "tower captured", "supplies secured", "objective complete"]
+        # Enhanced mission completion detection - much more specific
+        # Only end mission on very explicit completion/abandonment choices
+        explicit_completion_keywords = ["return to base camp", "abandon mission", "abort mission", "mission complete", "exfiltrate now"]
         
-        # Check for explicit completion choices
-        if any(keyword in chosen_action.lower() for keyword in completion_keywords):
+        # Check for explicit completion choices - only after minimum turns
+        if turn_count >= 3 and any(keyword in chosen_action.lower() for keyword in explicit_completion_keywords):
             return complete_mission(story)
         
-        # Auto-complete after 6 turns to prevent infinite games
+        # Auto-complete after 8 turns to prevent infinite games (increased from 6)
         mission = session.get("mission", {})
-        if turn_count >= 6:
+        if turn_count >= 8:
             mission_name = mission.get("name", "").lower()
             if "sabotage" in mission_name:
                 completion_story = "\n\nWith the charges set and the area clear, you signal the detonation. The bridge collapses in a thunderous explosion, cutting off enemy supply lines. Mission accomplished!"
@@ -958,9 +958,15 @@ def make_choice():
             logging.error(f"AI generation failed: {ai_error}")
             new_content = f"You proceed with {chosen_action}. The mission continues as your squad moves forward.\n\n1. Continue the advance.\n2. Take defensive positions.\n3. Regroup with the squad."
         
-        # Check for success indicators in AI response after generation
-        if any(keyword in new_content.lower() for keyword in SUCCESS_KEYWORDS):
-            return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
+        # Check for success indicators in AI response - only very explicit completion phrases
+        # Must have minimum turns and very specific completion language
+        if turn_count >= 4:
+            explicit_success_phrases = [
+                "mission accomplished", "all objectives complete", "mission successful", 
+                "objective fully achieved", "mission complete", "successfully completed the mission"
+            ]
+            if any(phrase in new_content.lower() for phrase in explicit_success_phrases):
+                return complete_mission(story + f"\n\nMISSION OBJECTIVE ACHIEVED: {chosen_action}")
         
         # COMBAT DETECTION - Check for combat keywords and set flag for frontend interactive combat
         combat_detected = any(keyword in new_content.lower() for keyword in COMBAT_KEYWORDS)
