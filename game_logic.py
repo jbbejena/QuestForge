@@ -330,18 +330,19 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     # Much more conservative determination - require high confidence AND minimum turns
     turn_count = session.get("turn_count", 0)
     
-    # Prevent premature completion - require at least 4 turns
-    if turn_count < 4:
+    # Prevent premature completion - require at least 8 turns for campaign missions
+    # D-Day and other major operations shouldn't end after 4 clicks
+    if turn_count < 8:
         return None
     
     # Require very high confidence for completion
-    if success_score >= 15 and success_score > failure_score + 10:
+    if success_score >= 25 and success_score > failure_score + 15:
         return "success"
-    elif failure_score >= 15 and failure_score > success_score + 10:
+    elif failure_score >= 25 and failure_score > success_score + 15:
         return "failure"
     
     # Check turn count for long missions - require even more specific language
-    if turn_count >= 8:
+    if turn_count >= 12:
         # Look for very specific completion phrases
         completion_phrases = ["mission accomplished", "objective complete", "mission successful", "mission complete"]
         failure_phrases = ["mission failed", "mission aborted", "forced to retreat"]

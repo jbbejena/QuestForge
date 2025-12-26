@@ -1040,33 +1040,40 @@ def make_choice():
             # Keep current story state until combat is resolved
             new_full_story = base_story + session.get("pending_choice_result", "")
         
-        # Check for mission outcome after story update
-        mission_outcome = detect_mission_outcome(new_full_story)
-        if mission_outcome:
-            session["mission_outcome"] = mission_outcome
+    # Check for mission outcome after story update
+    mission_outcome = detect_mission_outcome(new_full_story)
+    
+    # Log mission outcome detection
+    if mission_outcome:
+        logging.info(f"Mission outcome detected: {mission_outcome} at turn {turn_count}")
+    else:
+        logging.debug(f"No mission outcome detected at turn {turn_count}")
+
+    if mission_outcome:
+        session["mission_outcome"] = mission_outcome
             
-            # Update squad casualties based on story content
-            if any(word in new_content.lower() for word in ["casualty", "killed", "died", "fallen", "lost"]):
-                squad = session.get("squad", [])
-                if squad and random.random() < 0.3:  # 30% chance of squad casualty
-                    casualty = random.choice(squad)
-                    squad.remove(casualty)
-                    session["squad"] = squad
-                    
-                    dead_members = session.get("dead_squad_members", [])
-                    dead_members.append(casualty)
-                    session["dead_squad_members"] = dead_members
-                    
-                    # Add to story
-                    new_full_story += f"\n\n[Squad member {casualty} has fallen in combat.]"
-            
-            # Mission complete - redirect to base camp
-            if mission_outcome == "success":
-                session["story"] = new_full_story + "\n\nMISSION SUCCESSFUL! Returning to base..."
-                return redirect(url_for("mission_complete"))
-            elif mission_outcome == "failure":
-                session["story"] = new_full_story + "\n\nMISSION FAILED. Forced to retreat..."
-                return redirect(url_for("mission_complete"))
+        # Update squad casualties based on story content
+        if any(word in new_content.lower() for word in ["casualty", "killed", "died", "fallen", "lost"]):
+            squad = session.get("squad", [])
+            if squad and random.random() < 0.3:  # 30% chance of squad casualty
+                casualty = random.choice(squad)
+                squad.remove(casualty)
+                session["squad"] = squad
+                
+                dead_members = session.get("dead_squad_members", [])
+                dead_members.append(casualty)
+                session["dead_squad_members"] = dead_members
+                
+                # Add to story
+                new_full_story += f"\n\n[Squad member {casualty} has fallen in combat.]"
+        
+        # Mission complete - redirect to base camp
+        if mission_outcome == "success":
+            session["story"] = new_full_story + "\n\nMISSION SUCCESSFUL! Returning to base..."
+            return redirect(url_for("mission_complete"))
+        elif mission_outcome == "failure":
+            session["story"] = new_full_story + "\n\nMISSION FAILED. Forced to retreat..."
+            return redirect(url_for("mission_complete"))
         
         # Hybrid session-database story management
         if len(new_full_story) > 2500:  # Lower threshold with database backup
