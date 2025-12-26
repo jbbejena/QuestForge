@@ -335,6 +335,37 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     if turn_count < 8:
         return None
     
+    # Check for success indicators with weights
+    success_indicators = [
+        ("mission accomplished", 10),
+        ("objective complete", 10),
+        ("mission successful", 10),
+        ("mission complete", 10),
+        ("successfully completed", 8),
+        ("target destroyed", 9),
+        ("beach secured", 8),
+        ("objective achieved", 9),
+        ("mission objectives completed", 10),
+        ("all objectives secured", 9)
+    ]
+    
+    # Failure indicators with weights  
+    failure_indicators = [
+        ("mission failed", 10),
+        ("retreat", 7),
+        ("objective lost", 9),
+        ("defeated", 8),
+        ("overwhelmed", 8),
+        ("forced to withdraw", 9),
+        ("mission aborted", 10),
+        ("casualty rate too high", 9),
+        ("squad eliminated", 10),
+        ("captured", 8)
+    ]
+    
+    success_score = sum(weight for keyword, weight in success_indicators if keyword in story_lower)
+    failure_score = sum(weight for keyword, weight in failure_indicators if keyword in story_lower)
+    
     # Require very high confidence for completion
     if success_score >= 25 and success_score > failure_score + 15:
         return "success"
