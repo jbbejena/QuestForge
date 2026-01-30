@@ -11,152 +11,80 @@
     <div class="container">
         <header class="text-center mb-4">
             <h1 class="game-title">
-                <i class="fas fa-map"></i>
-                Mission Briefing
+                <i class="fas fa-map-marked-alt"></i>
+                Mission Selection
             </h1>
-            <p class="subtitle">Select your next operation, soldier</p>
+            {% if player %}
+            <div class="player-info">
+                <span class="player-tag">{{ player.rank }} {{ player.name }}</span>
+                <span class="score">Score: {{ score }}</span>
+            </div>
+            {% endif %}
         </header>
 
-        {% if player %}
-        <div class="player-status">
-            <div class="player-info">
-                <div class="player-avatar">
-                    <i class="fas fa-user-tie"></i>
-                </div>
-                <div class="player-details">
-                    <h3>{{ player.rank }} {{ player.name }}</h3>
-                    <p>{{ player.class }} - {{ player.weapon }}</p>
-                    <div class="health-display">
-                        <div class="progress-bar">
-                            <div class="progress-fill {% if player.health > 70 %}health-good{% elif player.health > 30 %}health-warning{% else %}health-danger{% endif %}" 
-                                 style="width: {{ player.health }}%"></div>
-                            <span class="progress-text">{{ player.health }}/100 HP</span>
-                        </div>
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-crosshairs"></i> Available Operations</h2>
+                <p>Choose your next mission carefully. Each has different risks and rewards.</p>
             </div>
-            <div class="score-display">
-                <div class="score-item">
-                    <i class="fas fa-trophy"></i>
-                    <span>{{ score }} pts</span>
-                </div>
-                <div class="score-item">
-                    <i class="fas fa-medal"></i>
-                    <span>{{ achievements_count }} achievements</span>
-                </div>
-            </div>
-        </div>
-        {% endif %}
 
-        <!-- Campaign Mode: Single Mission Display -->
-        <div class="campaign-header">
-            <h2><i class="fas fa-flag"></i> Campaign Mission #{{ mission_number }}</h2>
-            <p class="campaign-date">{{ campaign_date }}</p>
-            {% if mission.location %}
-            <p class="campaign-location"><i class="fas fa-map-marker-alt"></i> {{ mission.location }}</p>
-            {% endif %}
-        </div>
-
-        <!-- Squad Status -->
-        {% if squad %}
-        <div class="squad-status">
-            <h3><i class="fas fa-users"></i> Your Squad</h3>
-            <div class="squad-members">
-                {% for member in squad %}
-                <span class="squad-member alive"><i class="fas fa-user-shield"></i> {{ member }}</span>
-                {% endfor %}
-                {% for member in dead_squad %}
-                <span class="squad-member dead"><i class="fas fa-cross"></i> {{ member }} (KIA)</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <div class="missions-grid">
-            <!-- Single Mission Card for Campaign -->
-            <div class="mission-card campaign-mission" data-difficulty="{{ mission.difficulty }}">
-                <div class="mission-header">
-                    <h3>{{ mission.name }}</h3>
-                    <div class="difficulty-badge difficulty-{{ mission.difficulty.lower() }}">
-                        {% if mission.difficulty == "Easy" %}
-                            <i class="fas fa-star"></i>
-                        {% elif mission.difficulty == "Medium" %}
-                            <i class="fas fa-star"></i><i class="fas fa-star"></i>
-                        {% else %}
-                            <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
-                        {% endif %}
-                        {{ mission.difficulty }}
+            <form method="post" action="{{ url_for('start_mission') }}" class="mission-form">
+                <div class="missions-grid">
+                    {% for mission in missions %}
+                    <div class="mission-card">
+                        <input type="radio" 
+                               id="mission-{{ loop.index }}" 
+                               name="mission" 
+                               value="{{ mission.name }}"
+                               {% if loop.first %}checked{% endif %}
+                               class="mission-radio">
+                        
+                        <label for="mission-{{ loop.index }}" class="mission-label">
+                            <div class="mission-header">
+                                <h3>{{ mission.name }}</h3>
+                                <span class="difficulty difficulty-{{ mission.difficulty.lower() }}">
+                                    <i class="fas fa-star"></i>
+                                    {{ mission.difficulty }}
+                                </span>
+                            </div>
+                            <p class="mission-desc">{{ mission.desc }}</p>
+                            <div class="mission-footer">
+                                <span class="reward">
+                                    <i class="fas fa-trophy"></i>
+                                    {% if mission.difficulty == 'Easy' %}50{% elif mission.difficulty == 'Hard' %}200{% else %}100{% endif %} pts
+                                </span>
+                            </div>
+                        </label>
                     </div>
+                    {% endfor %}
                 </div>
-                
-                <div class="mission-content">
-                    <p class="mission-description">{{ mission.desc }}</p>
-                    
-                    <div class="mission-rewards">
-                        <div class="reward-item">
-                            <i class="fas fa-coins"></i>
-                            <span>
-                                {% if mission.difficulty == "Easy" %}50 pts
-                                {% elif mission.difficulty == "Medium" %}100 pts
-                                {% else %}200 pts{% endif %}
-                            </span>
-                        </div>
-                        <div class="reward-item">
-                            <i class="fas fa-bullseye"></i>
-                            <span>+3 Ammo</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <form method="post" action="{{ url_for('start_mission') }}" class="mission-form">
-                    <input type="hidden" name="mission" value="{{ mission.name }}">
+
+                <div class="form-actions">
                     <button type="submit" class="btn btn-primary btn-large">
                         <i class="fas fa-rocket"></i>
-                        Deploy
+                        Deploy to Mission
                     </button>
-                </form>
-            </div>
+                    
+                    <a href="{{ url_for('base') }}" class="btn btn-secondary">
+                        <i class="fas fa-home"></i>
+                        Return to Base
+                    </a>
+                    
+                    <a href="{{ url_for('achievements') }}" class="btn btn-info">
+                        <i class="fas fa-trophy"></i>
+                        Achievements{% if achievements_count > 0 %} ({{ achievements_count }}){% endif %}
+                    </a>
+                </div>
+            </form>
         </div>
 
-        <div class="navigation-buttons">
-            <a href="{{ url_for('index') }}" class="btn btn-secondary">
-                <i class="fas fa-home"></i>
-                Return to Base
-            </a>
-            
-            {% if achievements_count > 0 %}
-            <a href="{{ url_for('achievements') }}" class="btn btn-info">
-                <i class="fas fa-trophy"></i>
-                Achievements ({{ achievements_count }})
-            </a>
-            {% endif %}
-            
-            <a href="{{ url_for('reset') }}" class="btn btn-warning">
-                <i class="fas fa-refresh"></i>
-                New Campaign
-            </a>
-        </div>
-
-        <div class="mission-tips">
+        <div class="tactical-info">
             <h3><i class="fas fa-lightbulb"></i> Mission Tips</h3>
-            <div class="tips-grid">
-                <div class="tip">
-                    <i class="fas fa-heart"></i>
-                    <p>Higher health at mission end = bonus points</p>
-                </div>
-                <div class="tip">
-                    <i class="fas fa-crosshairs"></i>
-                    <p>Combat victories unlock special achievements</p>
-                </div>
-                <div class="tip">
-                    <i class="fas fa-first-aid"></i>
-                    <p>Use medkits strategically to survive tough missions</p>
-                </div>
-                <div class="tip">
-                    <i class="fas fa-clock"></i>
-                    <p>Quick mission completion earns speed bonuses</p>
-                </div>
-            </div>
+            <ul>
+                <li><strong>Easy:</strong> Lower risk, basic rewards, good for beginners</li>
+                <li><strong>Medium:</strong> Balanced challenge with decent rewards</li>
+                <li><strong>Hard:</strong> High risk, high reward operations</li>
+            </ul>
         </div>
     </div>
 
