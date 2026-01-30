@@ -9,7 +9,6 @@
 </head>
 <body class="bg-dark">
     <div class="container">
-        <!-- HUD Display -->
         <div class="hud">
             <div class="hud-left">
                 <div class="player-info">
@@ -27,130 +26,49 @@
                     <label><i class="fas fa-heart"></i> Health</label>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: {{ player.health }}%"></div>
-                        <span class="progress-text">{{ player.health }}/{{ player.max_health or 100 }}</span>
-                    </div>
-                </div>
-
-                <div class="morale-bar">
-                    <label><i class="fas fa-shield-alt"></i> Morale</label>
-                    <div class="progress-bar morale">
-                        <div class="progress-fill morale-fill" style="width: {{ player.morale or 100 }}%"></div>
-                        <span class="progress-text">{{ player.morale or 100 }}%</span>
+                        <span class="progress-text">{{ player.health }}/100</span>
                     </div>
                 </div>
                 
                 <div class="resources">
-                    <span class="resource" title="Ammunition">
-                        <i class="fas fa-bullseye"></i>
-                        {{ resources.get('ammo', 0) }}
+                    <span class="resource">
+                        <i class="fas fa-bullseye"></i> {{ resources.ammo }}
                     </span>
-                    <span class="resource" title="Medical Kits">
-                        <i class="fas fa-first-aid"></i>
-                        {{ resources.get('medkit', 0) }}
+                    <span class="resource">
+                        <i class="fas fa-medkit"></i> {{ resources.medkit }}
                     </span>
-                    <span class="resource" title="Grenades">
-                        <i class="fas fa-bomb"></i>
-                        {{ resources.get('grenade', 0) }}
+                    <span class="resource">
+                        <i class="fas fa-bomb"></i> {{ resources.grenade }}
                     </span>
-                    {% if resources.get('intel', 0) > 0 %}
-                    <span class="resource" title="Intelligence">
-                        <i class="fas fa-file-alt"></i>
-                        {{ resources.get('intel', 0) }}
-                    </span>
-                    {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- Story Display -->
-        <div class="story-card">
-            <div class="story-content" id="story-content">
-                {% if base_story and new_content %}
-                    <!-- Static previous story -->
-                    <div id="base-story" class="base-story">
-                        {{ base_story | replace('\n', '<br>') | safe }}
-                    </div>
-                    
-                    <!-- New content that will be typed -->
-                    <div id="new-content" class="new-content" style="display: none;">
-                        {{ new_content | replace('\n', '<br>') | safe }}
-                    </div>
-                {% else %}
-                    <!-- First time or full story display -->
-                    <div id="full-story">
-                        {{ story | replace('\n', '<br>') | safe }}
-                    </div>
-                {% endif %}
+        <div class="card story-card">
+            <div class="story-content">
+                {{ story | replace('\n', '<br>') | safe }}
             </div>
         </div>
 
-        <!-- Squad and Special Ability Info -->
-        <div class="squad-info">
-            <div class="ability-card">
-                <h4><i class="fas fa-star"></i> Special Ability</h4>
-                <p>{{ player.special_ability or "Standard Training" }}</p>
-            </div>
-            
-            {% if squad %}
-            <div class="squad-card">
-                <h4><i class="fas fa-users"></i> Squad</h4>
-                <div class="squad-members">
-                    {% for member in squad %}
-                    <span class="squad-member">{{ member }}</span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="action-buttons">
-            <button onclick="useItem('medkit')" class="action-btn medkit-btn" {% if resources.get('medkit', 0) <= 0 %}disabled{% endif %}>
-                <i class="fas fa-first-aid"></i>
-                Use Medkit ({{ resources.get('medkit', 0) }})
-            </button>
-            
-            <button onclick="useItem('grenade')" class="action-btn grenade-btn" {% if resources.get('grenade', 0) <= 0 %}disabled{% endif %}>
-                <i class="fas fa-bomb"></i>
-                Use Grenade ({{ resources.get('grenade', 0) }})
-            </button>
-            
-            <button onclick="quickSave()" class="action-btn save-btn">
-                <i class="fas fa-save"></i>
-                Quick Save
-            </button>
-            
-            <button onclick="quickLoad()" class="action-btn load-btn">
-                <i class="fas fa-upload"></i>
-                Quick Load
-            </button>
-        </div>
-
-        <!-- Choices -->
         <div class="choices-container">
-            <h3><i class="fas fa-chess-pawn"></i> Choose Your Action</h3>
-            
-            <form method="post" action="{{ url_for('make_choice') }}" class="choices-form" id="choiceForm">
-                <input type="hidden" name="choice" id="selectedChoice" value="1">
+            <form id="choiceForm" method="post" action="{{ url_for('make_choice') }}" class="choices-form">
                 {% for choice in choices %}
-                <button type="button" 
-                        class="choice-btn choice-{{ loop.index }}"
-                        onclick="confirmChoice({{ loop.index }}, '{{ choice|replace("'", "\\'") }}')"
->
+                <button type="submit" 
+                        name="choice" 
+                        value="{{ loop.index }}" 
+                        class="choice-btn">
                     <span class="choice-number">{{ loop.index }}</span>
                     <span class="choice-text">{{ choice }}</span>
-                    <i class="fas fa-chevron-right"></i>
                 </button>
                 {% endfor %}
             </form>
         </div>
 
-        <!-- Quick Actions -->
         <div class="quick-actions">
-            {% if resources.get('medkit', 0) > 0 and player.health < 100 %}
+            {% if resources.medkit > 0 and player.health < 100 %}
             <button onclick="useItem('medkit')" class="btn btn-small btn-success">
                 <i class="fas fa-first-aid"></i>
-                Use Medkit ({{ resources.get('medkit', 0) }})
+                Use Medkit ({{ resources.medkit }})
             </button>
             {% endif %}
             
@@ -161,28 +79,34 @@
         </div>
     </div>
 
-    <!-- Notifications -->
     <div id="notification" class="notification hidden">
         <span id="notification-text"></span>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
-        // Update health bar color based on health level
-        const healthFill = document.querySelector('.progress-fill');
-        const health = {{ player.health }};
-        
-        if (health > 70) {
-            healthFill.classList.add('health-good');
-        } else if (health > 30) {
-            healthFill.classList.add('health-warning');
-        } else {
-            healthFill.classList.add('health-danger');
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update health bar color based on health level
+            const healthFill = document.querySelector('.progress-fill');
+            // Use safe default in case player variable isn't ready
+            const health = {{ player.health if player else 100 }};
+            
+            if (healthFill) {
+                if (health > 70) {
+                    healthFill.classList.add('health-good');
+                } else if (health > 30) {
+                    healthFill.classList.add('health-warning');
+                } else {
+                    healthFill.classList.add('health-danger');
+                }
+            }
 
-        // Auto-scroll to bottom of story
-        const storyContent = document.querySelector('.story-content');
-        storyContent.scrollTop = storyContent.scrollHeight;
+            // Auto-scroll to bottom of story
+            const storyContent = document.querySelector('.story-content');
+            if (storyContent) {
+                storyContent.scrollTop = storyContent.scrollHeight;
+            }
+        });
     </script>
 </body>
 </html>

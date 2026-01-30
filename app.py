@@ -342,7 +342,7 @@ def make_choice():
 
         # Keep story manageable to prevent cookie overflow (FIX)
         story_parts = story.split('\n\n')
-        if len(story_parts) > 5:  # Reduced from 15 to 5
+        if len(story_parts) > 20:  # Reduced from 15 to 5
             # Keep the mission briefing (first part) and recent parts
             story = story_parts[0] + '\n\n...[Earlier events]...\n\n' + '\n\n'.join(story_parts[-4:])
 
