@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mission in Progress - WWII Text Adventure</title>
+    <title>Mission in Progress</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -15,10 +15,6 @@
                     <strong>{{ player.name }}</strong>
                     <span>{{ player.rank }} {{ player.class }}</span>
                 </div>
-                <div class="mission-info">
-                    <i class="fas fa-crosshairs"></i>
-                    {{ mission.name }}
-                </div>
             </div>
             
             <div class="hud-right">
@@ -29,24 +25,18 @@
                         <span class="progress-text">{{ player.health }}/100</span>
                     </div>
                 </div>
-                
-                <div class="resources">
-                    <span class="resource">
-                        <i class="fas fa-bullseye"></i> {{ resources.ammo }}
-                    </span>
-                    <span class="resource">
-                        <i class="fas fa-medkit"></i> {{ resources.medkit }}
-                    </span>
-                    <span class="resource">
-                        <i class="fas fa-bomb"></i> {{ resources.grenade }}
-                    </span>
-                </div>
             </div>
         </div>
 
         <div class="card story-card">
             <div class="story-content">
-                {{ story | replace('\n', '<br>') | safe }}
+                <div id="story-history" class="story-text-static">
+                    {{ history | replace('\n', '<br>') | safe }}
+                </div>
+                
+                <div id="story-new" class="story-text-new">
+                    {{ new_text | replace('\n', '<br>') | safe }}
+                </div>
             </div>
         </div>
 
@@ -65,48 +55,49 @@
         </div>
 
         <div class="quick-actions">
-            {% if resources.medkit > 0 and player.health < 100 %}
-            <button onclick="useItem('medkit')" class="btn btn-small btn-success">
-                <i class="fas fa-first-aid"></i>
-                Use Medkit ({{ resources.medkit }})
-            </button>
-            {% endif %}
-            
             <a href="{{ url_for('mission_menu') }}" class="btn btn-small btn-warning">
-                <i class="fas fa-flag-checkered"></i>
-                Abandon Mission
+                <i class="fas fa-flag-checkered"></i> Abandon
             </a>
         </div>
-    </div>
-
-    <div id="notification" class="notification hidden">
-        <span id="notification-text"></span>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Update health bar color based on health level
-            const healthFill = document.querySelector('.progress-fill');
-            // Use safe default in case player variable isn't ready
-            const health = {{ player.health if player else 100 }};
-            
-            if (healthFill) {
-                if (health > 70) {
-                    healthFill.classList.add('health-good');
-                } else if (health > 30) {
-                    healthFill.classList.add('health-warning');
-                } else {
-                    healthFill.classList.add('health-danger');
-                }
-            }
-
-            // Auto-scroll to bottom of story
-            const storyContent = document.querySelector('.story-content');
-            if (storyContent) {
-                storyContent.scrollTop = storyContent.scrollHeight;
+            // Only apply Typewriter effect to the NEW text
+            const newTextDiv = document.getElementById('story-new');
+            if (newTextDiv && newTextDiv.innerText.trim().length > 0) {
+                const fullText = newTextDiv.innerHTML;
+                newTextDiv.innerHTML = '';
+                newTextDiv.style.opacity = 1;
+                
+                let i = 0;
+                // Strip HTML tags for cleaner typing, then re-insert? 
+                // Simple approach: Type char by char but it might break tags.
+                // Better approach: Just fade it in for now to solve the "re-type" annoyance safely.
+                // OR: fast text reveal.
+                
+                // Let's use a simple fade-in/slide-up for the new text instead of
+                // the slow character-by-character typing which is annoying for long text.
+                newTextDiv.style.animation = "fadeIn 0.5s ease-in forwards";
+                newTextDiv.innerHTML = fullText;
+                
+                // Scroll to bottom
+                const storyContent = document.querySelector('.story-content');
+                setTimeout(() => {
+                    storyContent.scrollTop = storyContent.scrollHeight;
+                }, 100);
             }
         });
     </script>
+    
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .story-text-static { opacity: 0.8; }
+        .story-text-new { opacity: 0; font-weight: 500; border-left: 3px solid var(--color-primary); padding-left: 10px; margin-top: 15px; }
+    </style>
 </body>
 </html>
