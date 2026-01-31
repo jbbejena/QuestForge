@@ -386,36 +386,35 @@ def detect_mission_outcome(story_content: str) -> Optional[str]:
     return None
 
 def extract_choices_from_story(story_content: str) -> Dict[int, str]:
-    """Enhanced choice extraction with better parsing."""
+    """Enhanced choice extraction."""
     choices = {}
-    
     if not story_content:
         return choices
-    
-    # Multiple choice patterns
-    patterns = [
-        r'\n(\d+)\.\s*(.+?)(?=\n\d+\.|$)',  # Numbered choices
-        r'\n([A-C])\)\s*(.+?)(?=\n[A-C]\)|$)',  # Lettered choices
-        r'Choice (\d+):\s*(.+?)(?=Choice \d+:|$)',  # "Choice X:" format
-    ]
-    
-    for pattern in patterns:
-        matches = re.findall(pattern, story_content, re.MULTILINE | re.DOTALL)
-        if matches:
-            for i, (choice_num, choice_text) in enumerate(matches, 1):
-                choice_text = choice_text.strip()
-                choice_text = re.sub(r'\n+', ' ', choice_text)  # Replace newlines
-                choice_text = choice_text.rstrip('.')  # Remove trailing period
-                
-                if len(choice_text) > 5:  # Only accept substantial choices
-                    try:
-                        num = int(choice_num) if choice_num.isdigit() else i
-                        choices[num] = choice_text
-                    except:
-                        choices[i] = choice_text
+
+    # Look for patterns like "1. Move forward" or "1) Move forward" at the end of the text
+    lines = story_content.split('\n')
+    # Scan reversed to find the LAST set of choices
+    count = 0
+    for line in reversed(lines):
+        # Stop if we found 3 choices or hit a blank line after finding some
+        if count >= 3: 
             break
-    
-    return choices
+
+        # Match "1. " or "1) "
+        match = re.search(r'^\s*(\d+)[\.\)]\s*(.+)', line)
+        if match:
+            num = int(match.group(1))
+            text = match.group(2).strip()
+            choices[num] = text
+            count += 1
+
+    # If reverse scan failed, try standard forward scan (fallback)
+    if not choices:
+        matches = re.findall(r'\n(\d+)[\.\)]\s*(.+?)(?=\n\d+[\.\)]|$)', story_content)
+        for num, text in matches:
+            choices[int(num)] = text.strip()
+
+    return dict(sorted(choices.items()))
 
 def validate_game_state(player: Dict[str, Any], resources: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and sanitize game state to prevent issues."""
