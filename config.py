@@ -21,6 +21,45 @@ INITIAL_MISSION: Dict[str, Any] = {
     "is_campaign_start": True
 }
 
+# Available Missions
+MISSIONS: List[Dict[str, Any]] = [
+    {
+        "name": "Operation Overlord - D-Day",
+        "desc": "Storm the beaches of Normandy with your squad. The fate of Europe hangs in the balance.",
+        "difficulty": "Hard",
+        "location": "Omaha Beach, Normandy",
+        "date": "June 6, 1944"
+    },
+    {
+        "name": "Battle of the Bulge",
+        "desc": "Hold the line against the German winter offensive in the Ardennes forest.",
+        "difficulty": "Hard",
+        "location": "Ardennes, Belgium",
+        "date": "December 16, 1944"
+    },
+    {
+        "name": "Operation Market Garden",
+        "desc": "Secure key bridges in the Netherlands to open a path into Germany.",
+        "difficulty": "Medium",
+        "location": "Arnhem, Netherlands",
+        "date": "September 17, 1944"
+    },
+    {
+        "name": "Liberation of Paris",
+        "desc": "Fight alongside the French Resistance to free the City of Light.",
+        "difficulty": "Medium",
+        "location": "Paris, France",
+        "date": "August 25, 1944"
+    },
+    {
+        "name": "Crossing the Rhine",
+        "desc": "Lead your squad across the last major barrier into the heart of Germany.",
+        "difficulty": "Hard",
+        "location": "Remagen, Germany",
+        "date": "March 7, 1945"
+    }
+]
+
 # Mission Difficulty Settings
 DIFFICULTY_SETTINGS: Dict[str, Dict[str, Any]] = {
     "Easy": {
